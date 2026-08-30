@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use std::net::TcpListener;
+use std::{io::Write, net::TcpListener};
 use chrono::prelude::*;
 
 fn info(msg: &str) {
@@ -12,8 +12,9 @@ fn main() {
     
     for stream in listener.incoming() {
         match stream {
-            Ok(_stream) => {
-                println!("accepted new connection");
+            Ok(mut stream) => {
+                info("new connection");
+                stream.write_all("+PONG\r\n".as_bytes());
             }
             Err(e) => {
                 println!("error: {}", e);
