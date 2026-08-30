@@ -18,6 +18,7 @@ fn main() {
                 loop {
                     let bytes_read = stream.read(&mut buf).unwrap();
                     if bytes_read == 0 {
+                        info("ending connection");
                         break;
                     }
                     stream.write_all(b"+PONG\r\n").unwrap();
