@@ -6,10 +6,15 @@ fn info(msg: &str) {
     println!("[INFO] [{}] {}", Utc::now().to_string(), msg);
 }
 
+const HOST: &'static str = "127.0.0.1";
+const PORT: &'static str = "6379";
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    info("Listening on port 6379");
-    let listener = TcpListener::bind("127.0.0.1:6379").await?;
+    let addr = format!("{}:{}", HOST, PORT);
+    let listener = TcpListener::bind(addr).await?;
+
+    info(&format!("listening on port {}", PORT));
 
     loop {
         let (mut stream, _) = listener.accept().await?;
