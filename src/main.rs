@@ -1,32 +1,37 @@
-#![allow(unused_imports)]
-use std::{io::{Read, Write}, net::TcpListener};
+use tokio::net::{TcpListener};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use chrono::prelude::*;
 
 fn info(msg: &str) {
-    println!("{}", format!("[INFO] [{}] {}", Utc::now().to_string(), msg));
+    println!("[INFO] [{}] {}", Utc::now().to_string(), msg);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info("Listening on port 6379");
-    let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
-    
-    for stream in listener.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                info("new connection");
-                let mut buf = [0; 512];
-                loop {
-                    let bytes_read = stream.read(&mut buf).unwrap();
-                    if bytes_read == 0 {
+    let listener = TcpListener::bind("127.0.0.1:6379").await?;
+
+    loop {
+        let (mut stream, _) = listener.accept().await?;
+        
+        // Ownership of `stream` is moved into the async task—no Arc required
+        tokio::spawn(async move {
+            info("new connection");
+            let mut buf = [0; 512];
+            
+            loop {
+                match stream.read(&mut buf).await {
+                    Ok(0) | Err(_) => {
                         info("ending connection");
                         break;
                     }
-                    stream.write_all(b"+PONG\r\n").unwrap();
+                    Ok(n) => n,
+                };
+
+                if let Err(_) = stream.write_all(b"+PONG\r\n").await {
+                    break;
                 }
             }
-            Err(e) => {
-                println!("error: {}", e);
-            }
-        }
+        });
     }
 }
