@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+use std::sync::{Arc};
+
+use tokio::sync::Mutex;
+
 use tokio::net::{TcpListener};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use chrono::prelude::*;
@@ -22,17 +27,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info(&format!("listening on port {}", PORT));
 
+    let str_data = Arc::new(Mutex::new(HashMap::<String, String>::new()));
+
     loop {
         let (mut stream, _) = listener.accept().await?;
 
+        let value = str_data.clone();
         tokio::spawn(async move {
-            info("new connection");
             let mut buf = [0; 512];
             
             loop {
                 let bytes_read = match stream.read(&mut buf).await {
                     Ok(0) => {
-                        info("ending connection");
                         break;
                     }
                     Ok(n) => n,
@@ -44,16 +50,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 match parse_resp(&buf[..bytes_read]) {
                     Ok(RespCommand::Ping) => {
-                        info("received PING");
-                        if let Err(_) = stream.write_all(b"+PONG\r\n").await {
+                        info("PING");
+                        if let Err(_) = stream.write_all(make_pong_message().as_bytes()).await {
                             break;
                         }
                     }
                     Ok(RespCommand::Echo(val)) => {
-                        info(&format!("received ECHO {}", val));
-                        let response = format!("${}\r\n{}\r\n", val.len(), val);
-                        if let Err(_) = stream.write_all(response.as_bytes()).await {
+                        info(&format!("ECHO {}", val));
+                        if let Err(_) = stream.write_all(make_echo_message(&val).as_bytes()).await {
                             break;
+                        }
+                    }
+                    Ok(RespCommand::SetString(k, v)) => {
+                        info(&format!("SET {} {}", k, v));
+                        let mut db = value.lock().await;
+                        db.insert(k, v);
+                        if let Err(_) = stream.write_all(make_ok_message().as_bytes()).await {
+                            break;
+                        }
+                    }
+                    Ok(RespCommand::GetString(k)) => {
+                        info(&format!("GET {}", k));
+                        let db = value.lock().await;
+                        let val = db.get(&k);
+                        if val.is_none() {
+                            if let Err(_) = stream.write_all(make_empty_message().as_bytes()).await {
+                                break;
+                            }
+                            continue;
+                        }
+
+                        if let Err(_) = stream.write_all(make_bulk_string(val.unwrap()).as_bytes()).await {
+                                break;
                         }
                     }
                     Err(err) => {
@@ -64,4 +92,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     }
+}
+
+
+fn make_pong_message() -> String {
+    String::from("+PONG\r\n")
+}
+
+fn make_echo_message(val: &str) -> String {
+    format!("${}\r\n{}\r\n", val.len(), val)
+}
+
+fn make_ok_message() -> String {
+    String::from("+OK\r\n")
+}
+
+fn make_empty_message() -> String {
+    String::from("$-1\r\n")
+}
+
+fn make_bulk_string(val: &str) -> String {
+    format!("${}\r\n{}\r\n", val.len(), val)
 }
