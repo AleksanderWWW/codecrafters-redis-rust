@@ -1,13 +1,16 @@
 use std::collections::HashMap;
-use std::sync::{Arc};
+use std::sync::Arc;
 
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
-use tokio::net::{TcpListener};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use chrono::prelude::*;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 
-use codecrafters_redis::resp::{parse_resp, RespCommand};
+use codecrafters_redis::resp::{RespCommand, parse_resp};
+use codecrafters_redis::entry::StringEntry;
+
+type Data = HashMap<String, StringEntry>;
 
 fn info(msg: &str) {
     println!("[INFO] [{}] {}", Utc::now().to_string(), msg);
@@ -27,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info(&format!("listening on port {}", PORT));
 
-    let str_data = Arc::new(Mutex::new(HashMap::<String, String>::new()));
+    let str_data = Arc::new(RwLock::new(Data::new()));
 
     loop {
         let (mut stream, _) = listener.accept().await?;
@@ -35,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let value = str_data.clone();
         tokio::spawn(async move {
             let mut buf = [0; 512];
-            
+
             loop {
                 let bytes_read = match stream.read(&mut buf).await {
                     Ok(0) => {
@@ -61,39 +64,75 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             break;
                         }
                     }
-                    Ok(RespCommand::SetString(k, v)) => {
+                    Ok(RespCommand::SetString(k, v, ttl_ms)) => {
                         info(&format!("SET {} {}", k, v));
-                        let mut db = value.lock().await;
-                        db.insert(k, v);
+                        {
+                            let mut db = value.write().await;
+                            let entry = match ttl_ms {
+                                None => StringEntry::new(v),
+                                Some(t) => StringEntry::with_ttl(v, t)
+                            };
+                            info(&format!("inserting entry {:?}", entry));
+                            db.insert(k, entry);
+                        }
+
                         if let Err(_) = stream.write_all(make_ok_message().as_bytes()).await {
                             break;
                         }
                     }
                     Ok(RespCommand::GetString(k)) => {
                         info(&format!("GET {}", k));
-                        let db = value.lock().await;
-                        let val = db.get(&k);
-                        if val.is_none() {
-                            if let Err(_) = stream.write_all(make_empty_message().as_bytes()).await {
-                                break;
+                        let val: Option<StringEntry> = {
+                            let guard = value.read().await;
+                            match guard.get(&k) {
+                                None => None,
+                                Some(e) => Some(StringEntry {
+                                    val: e.val.clone(),
+                                    expires_at: e.expires_at,
+                                })
                             }
-                            continue;
+                            
+                        };
+                        if val.is_none() {
+                            
                         }
 
-                        if let Err(_) = stream.write_all(make_bulk_string(val.unwrap()).as_bytes()).await {
-                                break;
+                        match val {
+                            None => {
+                                if let Err(_) = stream.write_all(make_empty_message().as_bytes()).await {
+                                    break;
+                                }
+                                continue;
+                            },
+                            Some(v) => {
+                                if v.is_expired() {
+                                    {
+                                        let mut guard = value.write().await;
+                                        guard.remove(&k);
+                                    }
+                                    if let Err(_) = stream.write_all(make_empty_message().as_bytes()).await {
+                                        break;
+                                    }
+                                } else {
+                                    if let Err(_) = stream
+                                        .write_all(make_bulk_string(&v.val).as_bytes())
+                                        .await
+                                    {
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
                     Err(err) => {
                         error(err);
                         continue;
                     }
-                }               
+                }
             }
         });
     }
 }
-
 
 fn make_pong_message() -> String {
     String::from("+PONG\r\n")
