@@ -124,13 +124,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     Ok(Op::RPush(k, v)) => {
                         info(&format!("RPUSH {} {:?}", k, v));
-                        {
+                        let l = {
                             
                             let mut db = arr_value.write().await;
-                            db.insert(k, vec!(v));
-                        }
+
+                            let arr = db.entry(k).or_default();
+
+                            arr.push(v);
+
+                            arr.len()
+
+                        };
                         if let Err(_) = stream
-                                        .write_all(make_int_message(1).as_bytes())
+                                        .write_all(make_int_message(l as i64).as_bytes())
                                         .await
                                     {
                                         break;
