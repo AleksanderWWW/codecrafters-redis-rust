@@ -122,15 +122,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     }
-                    Ok(Op::RPush(k, v)) => {
-                        info(&format!("RPUSH {} {:?}", k, v));
+                    Ok(Op::RPush(k, vs)) => {
                         let l = {
                             
                             let mut db = arr_value.write().await;
 
                             let arr = db.entry(k).or_default();
 
-                            arr.push(v);
+                            for v in vs.iter() {
+                                 arr.push(v.to_string());
+                            }
 
                             arr.len()
 

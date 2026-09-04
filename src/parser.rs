@@ -15,7 +15,7 @@ pub enum Op {
     Echo(String),
     Get(String),
     Set(String, EntryType, Option<u128>),
-    RPush(String, String)
+    RPush(String, Vec<String>)
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -89,8 +89,13 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
             if args.len() < 3 {
                 Err("invalid message")
             } else {
-                let (key, val) = (args[1].clone(), args[2].clone());
-                Ok(Op::RPush(key, val))
+                let key = args[1].clone();
+                let mut res: Vec<String> = vec!();
+
+                for elem in args[2..].iter() {
+                    res.push(elem.to_string());
+                }
+                Ok(Op::RPush(key, res))
             }
         }
         _ => Err("invalid message") 
