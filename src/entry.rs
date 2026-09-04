@@ -1,17 +1,19 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::parser::EntryType;
+
 #[derive(Debug, Clone)]
-pub struct StringEntry {
-    pub val: String,
+pub struct Entry {
+    pub val: EntryType,
     pub expires_at: Option<u128>,
 }
 
-impl StringEntry {
-    pub fn new(val: String) -> Self {
+impl Entry {
+    pub fn new(val: EntryType) -> Self {
         Self { val, expires_at: None }
     }
 
-    pub fn with_ttl(val: String, ttl_ms: u128) -> Self {
+    pub fn with_ttl(val: EntryType, ttl_ms: u128) -> Self {
         let now_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
