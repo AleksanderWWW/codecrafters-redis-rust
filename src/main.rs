@@ -140,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     if stop >= entry.len() {
                                         &entry[start..]
                                     } else {
-                                            &entry[start..stop]
+                                            &entry[start..stop + 1]
                                     }
                                     }
                                 };
@@ -154,7 +154,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         error(err);
                         continue;
                     }
-                    _ => continue
                 };
                 
                 if let Err(_) = stream.write_all(response.as_bytes()).await {
