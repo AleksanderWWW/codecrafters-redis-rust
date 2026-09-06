@@ -15,7 +15,8 @@ pub enum Op {
     Echo(String),
     Get(String),
     Set(String, EntryType, Option<u128>),
-    RPush(String, Vec<String>)
+    RPush(String, Vec<String>),
+    LRange(String, usize, usize),
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -96,6 +97,25 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                     res.push(elem.to_string());
                 }
                 Ok(Op::RPush(key, res))
+            }
+        }
+        "lrange" => {
+            if args.len() < 4 {
+                Err("invalid message")
+            } else {
+                let key = args[1].clone();
+
+                let start = match args[2].trim().parse::<usize>() {
+                        Err(_) => return Err("invalid message"),
+                        Ok(val) => Some(val),
+                    };
+
+                let stop = match args[3].trim().parse::<usize>() {
+                        Err(_) => return Err("invalid message"),
+                        Ok(val) => Some(val),
+                    };
+                
+                Ok(Op::LRange(key, start.unwrap(), stop.unwrap()))
             }
         }
         _ => Err("invalid message") 

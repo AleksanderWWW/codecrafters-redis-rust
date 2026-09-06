@@ -47,18 +47,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
 
-                match parse(&buf[..bytes_read]) {
+                let response = match parse(&buf[..bytes_read]) {
                     Ok(Op::Ping) => {
                         info("PING");
-                        if let Err(_) = stream.write_all(make_pong_message().as_bytes()).await {
-                            break;
-                        }
+                        make_pong_message()
                     }
                     Ok(Op::Echo(val)) => {
                         info(&format!("ECHO {}", val));
-                        if let Err(_) = stream.write_all(make_echo_message(&val).as_bytes()).await {
-                            break;
-                        }
+                        make_echo_message(&val)
                     }
                     Ok(Op::Set(k, v, ttl_ms)) => {
                         info(&format!("SET {} {:?}", k, v));
@@ -71,10 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let mut db = value.write().await;
                             db.insert(k, entry);                            
                         }
-
-                        if let Err(_) = stream.write_all(make_ok_message().as_bytes()).await {
-                            break;
-                        }
+                        make_ok_message()
                     }
                     Ok(Op::Get(k)) => {
                         info(&format!("GET {}", k));
@@ -92,10 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         match val {
                             None => {
-                                if let Err(_) = stream.write_all(make_empty_message().as_bytes()).await {
-                                    break;
-                                }
-                                continue;
+                                make_empty_message()
                             },
                             Some(v) => {
                                 if v.is_expired() {
@@ -104,20 +94,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         let mut guard = value.write().await;
                                         guard.remove(&k);
                                     }
-                                    if let Err(_) = stream.write_all(make_empty_message().as_bytes()).await {
-                                        break;
-                                    }
+                                    make_empty_message()
                                 } else {
                                     let src = match v.val {
                                         EntryType::Str(val) => make_bulk_string(&val),
                                         _ => break
                                     };
-                                    if let Err(_) = stream
-                                        .write_all(src.as_bytes())
-                                        .await
-                                    {
-                                        break;
-                                    }
+                                    src
                                 }
                             }
                         }
@@ -136,17 +119,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             arr.len()
 
                         };
-                        if let Err(_) = stream
-                                        .write_all(make_int_message(l as i64).as_bytes())
-                                        .await
-                                    {
-                                        break;
+                        make_int_message(l as i64)
+                        // if let Err(_) = stream
+                        //                 .write_all(make_int_message(l as i64).as_bytes())
+                        //                 .await
+                        //             {
+                        //                 break;
+                        //             }
+                    }
+                    Ok(Op::LRange(key, start, stop)) => {
+                        let default: Vec<String> = vec!();
+                        let msg = {
+                            if start > stop { make_range_message(&[]) } else {
+                                let db = arr_value.read().await;
+                                
+                                let entry = db.get(&key).unwrap_or(&default);
+
+                                let rg = {
+                                    if entry.len() <= start { &[] } else {
+                                    if stop >= entry.len() {
+                                        &entry[start..]
+                                    } else {
+                                            &entry[start..stop]
                                     }
+                                    }
+                                };
+                                make_range_message(rg)
+                            }
+                        };
+                        msg
+                        
                     }
                     Err(err) => {
                         error(err);
                         continue;
                     }
+                    _ => continue
+                };
+                
+                if let Err(_) = stream.write_all(response.as_bytes()).await {
+                    break;
                 }
             }
         });
@@ -175,4 +187,20 @@ fn make_bulk_string(val: &str) -> String {
 
 fn make_int_message(val: i64) -> String {
     format!(":{}\r\n", val)
+}
+
+fn make_range_message(rg: &[String]) -> String {
+    if rg.len() == 0 {
+        format!("*-1\r\n")
+    } else {
+        let l = rg.len();
+
+        let mut msg = format!("*{}\r\n", l);
+
+        for elem in rg {
+            msg = msg + &format!("${}\r\n{}\r\n", elem.len(), elem);
+        }
+
+        msg
+    }
 }
