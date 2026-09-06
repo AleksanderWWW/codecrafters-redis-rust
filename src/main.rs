@@ -189,17 +189,13 @@ fn make_int_message(val: i64) -> String {
 }
 
 fn make_range_message(rg: &[String]) -> String {
-    if rg.len() == 0 {
-        format!("*-1\r\n")
-    } else {
-        let l = rg.len();
+    let l = rg.len();
 
-        let mut msg = format!("*{}\r\n", l);
+    let mut msg = format!("*{}\r\n", l);
 
-        for elem in rg {
-            msg = msg + &format!("${}\r\n{}\r\n", elem.len(), elem);
-        }
-
-        msg
+    for elem in rg {
+        msg = msg + &format!("${}\r\n{}\r\n", elem.len(), elem);
     }
+
+    msg
 }
