@@ -130,7 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(Op::LRange(key, start, stop)) => {
                         let default: Vec<String> = vec!();
                         let msg = {
-                            if start > stop { make_range_message(&[]) } else {
+                            if start > 0 && stop > 0 && start > stop { make_range_message(&[]) } else {
                                 let db = arr_value.read().await;
                                 
                                 let entry = db.get(&key).unwrap_or(&default);
@@ -158,6 +158,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     }
                                     false => stop as usize
                                 };
+
+                                info(&format!("{}, {}", u_start, u_stop));
 
                                 let rg = {
                                     if entry.len() <= u_start { &[] } else {
