@@ -135,12 +135,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 
                                 let entry = db.get(&key).unwrap_or(&default);
 
+                                let u_start: usize = match start < 0 {
+                                    true => {
+                                        let tmp = entry.len() as i32 + start;
+                                        if tmp < 0 {
+                                            0
+                                        } else {
+                                            tmp as usize
+                                        }
+                                    }
+                                    false => start as usize
+                                };
+
+                                let u_stop: usize = match stop < 0 {
+                                    true => {
+                                        let tmp = entry.len() as i32 + stop;
+                                        if tmp < 0 {
+                                            0
+                                        } else {
+                                            tmp as usize
+                                        }
+                                    }
+                                    false => stop as usize
+                                };
+
                                 let rg = {
-                                    if entry.len() <= start { &[] } else {
-                                    if stop >= entry.len() {
-                                        &entry[start..]
+                                    if entry.len() <= u_start { &[] } else {
+                                    if u_stop >= entry.len() {
+                                        &entry[u_start..]
                                     } else {
-                                            &entry[start..stop + 1]
+                                            &entry[u_start..u_stop + 1]
                                     }
                                     }
                                 };

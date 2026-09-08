@@ -16,7 +16,7 @@ pub enum Op {
     Get(String),
     Set(String, EntryType, Option<u128>),
     RPush(String, Vec<String>),
-    LRange(String, usize, usize),
+    LRange(String, i32, i32),
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -105,12 +105,12 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
             } else {
                 let key = args[1].clone();
 
-                let start = match args[2].trim().parse::<usize>() {
+                let start = match args[2].trim().parse::<i32>() {
                         Err(_) => return Err("invalid message"),
                         Ok(val) => Some(val),
                     };
 
-                let stop = match args[3].trim().parse::<usize>() {
+                let stop = match args[3].trim().parse::<i32>() {
                         Err(_) => return Err("invalid message"),
                         Ok(val) => Some(val),
                     };
