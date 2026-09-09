@@ -16,6 +16,7 @@ pub enum Op {
     Get(String),
     Set(String, EntryType, Option<u128>),
     RPush(String, Vec<String>),
+    LPush(String, Vec<String>),
     LRange(String, i32, i32),
 }
 
@@ -97,6 +98,19 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                     res.push(elem.to_string());
                 }
                 Ok(Op::RPush(key, res))
+            }
+        }
+        "lpush" => {
+            if args.len() < 3 {
+                Err("invalid message")
+            } else {
+                let key = args[1].clone();
+                let mut res: Vec<String> = vec!();
+
+                for elem in args[2..].iter() {
+                    res.push(elem.to_string());
+                }
+                Ok(Op::LPush(key, res))
             }
         }
         "lrange" => {
