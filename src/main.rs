@@ -10,7 +10,7 @@ use tokio::net::TcpListener;
 use codecrafters_redis::entry::Entry;
 use codecrafters_redis::log::{info, error};
 use codecrafters_redis::handlers::{
-    ArrOpType, handle_echo, handle_err, handle_get, handle_lrange, handle_ping, handle_push, handle_set
+    ArrOpType, handle_echo, handle_err, handle_get, handle_lrange, handle_ping, handle_push, handle_set, handle_llen
 };
 
 type Data = HashMap<String, Entry>;
@@ -78,6 +78,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(Op::LRange(key, start, stop)) => {
                         info(&format!("LRANGE {} {} {}", key, start, stop));
                         handle_lrange(key, start, stop, arr_data_cl.clone()).await
+                    }
+                    Ok(Op::Llen(k)) => {
+                        info(&format!("LLEN {}", k));
+                        handle_llen(k, arr_data_cl.clone()).await
                     }
                     Err(err) => {
                         error(err);

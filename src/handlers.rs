@@ -8,6 +8,10 @@ use crate::entry::Entry;
 use crate::log::info;
 use crate::parser::EntryType;
 
+type StrArc = Arc<RwLock<HashMap<String, Entry>>>;
+type ArrArc = Arc<RwLock<HashMap<String, VecDeque<String>>>>;
+
+
 pub fn handle_ping() -> String {
     make_pong_message()
 }
@@ -16,7 +20,7 @@ pub fn handle_echo(val: &str) -> String {
     make_echo_message(val)
 }
 
-pub async fn handle_set(k: String, v: EntryType, ttl_ms: Option<u128>, value: Arc<RwLock<HashMap<String, Entry>>>) -> String {
+pub async fn handle_set(k: String, v: EntryType, ttl_ms: Option<u128>, value: StrArc) -> String {
     let entry = match ttl_ms {
         None => Entry::new(v),
         Some(ttl) => Entry::with_ttl(v, ttl)
@@ -29,7 +33,7 @@ pub async fn handle_set(k: String, v: EntryType, ttl_ms: Option<u128>, value: Ar
     make_ok_message()
 }
 
-pub async fn handle_get(k: String, value: Arc<RwLock<HashMap<String, Entry>>>) -> String {
+pub async fn handle_get(k: String, value: StrArc) -> String {
     let val: Option<Entry> = {
                             let guard = value.read().await;
                             match guard.get(&k) {
@@ -70,7 +74,7 @@ pub enum ArrOpType {
     Right,
 }
 
-pub async fn handle_push(k: String, vs: Vec<String>, arr_value: Arc<RwLock<HashMap<String, VecDeque<String>>>>, op_type: ArrOpType) -> String {
+pub async fn handle_push(k: String, vs: Vec<String>, arr_value: ArrArc, op_type: ArrOpType) -> String {
     let l = {
                             
         let mut db = arr_value.write().await;
@@ -91,7 +95,7 @@ pub async fn handle_push(k: String, vs: Vec<String>, arr_value: Arc<RwLock<HashM
     make_int_message(l as i64)
 }
 
-pub async fn handle_lrange(key: String, start: i32, stop: i32, arr_value: Arc<RwLock<HashMap<String, VecDeque<String>>>>) -> String {
+pub async fn handle_lrange(key: String, start: i32, stop: i32, arr_value: ArrArc) -> String {
     let default: VecDeque<String> = VecDeque::new();
     let msg = {
         if start_idx_truly_bigger(start, stop) { make_empty_range_message() } else {
@@ -141,6 +145,15 @@ pub async fn handle_lrange(key: String, start: i32, stop: i32, arr_value: Arc<Rw
 
 fn start_idx_truly_bigger(start: i32, stop: i32) -> bool {
     start > 0 && stop > 0 && start > stop 
+}
+
+pub async fn handle_llen(k: String, arr_value: ArrArc) -> String {
+    let default: VecDeque<String> = VecDeque::new();
+    let db = arr_value.read().await;
+            
+    let entry = db.get(&k).unwrap_or(&default);
+
+    make_int_message(entry.len() as i64)
 }
 
 pub async fn handle_err() -> String {

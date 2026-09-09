@@ -18,6 +18,7 @@ pub enum Op {
     RPush(String, Vec<String>),
     LPush(String, Vec<String>),
     LRange(String, i32, i32),
+    Llen(String),
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -130,6 +131,14 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                     };
                 
                 Ok(Op::LRange(key, start.unwrap(), stop.unwrap()))
+            }
+        }
+        "llen" => {
+            if args.len() < 2 {
+                Err("invalid message")
+            } else {
+                let key = args[1].clone();
+                Ok(Op::Llen(key))
             }
         }
         _ => Err("invalid message") 
