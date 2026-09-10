@@ -84,9 +84,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         info(&format!("LLEN {}", k));
                         handle_llen(k, arr_data_cl.clone()).await
                     }
-                    Ok(Op::Lpop(k)) => {
+                    Ok(Op::Lpop(k, n)) => {
                         info(&format!("LPOP {}", k));
-                        handle_lpop(k, arr_data_cl.clone()).await
+                        handle_lpop(k, n, arr_data_cl.clone()).await
                     }
                     Err(err) => {
                         error(err);

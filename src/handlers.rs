@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::vec_deque::Iter;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -157,17 +158,37 @@ pub async fn handle_llen(k: String, arr_value: ArrArc) -> String {
     make_int_message(entry.len() as i64)
 }
 
-pub async fn handle_lpop(k: String, arr_value: ArrArc) -> String {
+pub async fn handle_lpop(k: String, n: Option<u64>, arr_value: ArrArc) -> String {
     let mut db = arr_value.write().await;
 
     match db.get_mut(&k) {
-        Some(val) => match val.pop_front() {
-            None => make_empty_message(),
-            Some(elem) => make_string_message(&elem),
-        },
         None => make_empty_message(),
+        Some(val) => {
+            match n {
+                None => {
+                    match val.pop_front() {
+                        None => make_empty_message(),
+                        Some(elem) => make_string_message(&elem),
+                }
+            }
+                Some(n_elems) => {
+                    let n_to_remove = min(n_elems, val.len() as u64);
+                    let mut removed_elems: Vec<String> = vec!();
+
+                    for _ in 0..n_to_remove {
+                        match val.pop_front() {
+                            None => break,
+                            Some(x) => removed_elems.push(x),
+                        }
+                    }
+
+                    make_range_message(removed_elems.iter().collect())
+                }
+            }
+        }
     }
 }
+
 
 pub async fn handle_err() -> String {
     make_empty_message()

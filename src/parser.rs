@@ -19,7 +19,7 @@ pub enum Op {
     LPush(String, Vec<String>),
     LRange(String, i32, i32),
     Llen(String),
-    Lpop(String),
+    Lpop(String, Option<u64>),
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -142,10 +142,19 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
         }
         "lpop" => {
             if args.len() < 2 {
-                Err("invalid message")
+                Err("too few arguments to LPOP")
             } else {
                 let key = args[1].clone();
-                Ok(Op::Lpop(key))
+                if args.len() == 3 {
+                    let n = match args[2].trim().parse::<u64>() {
+                        Err(_) => return Err("could not parse the second argument"),
+                        Ok(val) => val
+                    };
+                    Ok(Op::Lpop(key, Some(n)))
+                } else {
+                    Ok(Op::Lpop(key, None))
+                }
+                
             }
         }
         _ => Err("invalid message"),
