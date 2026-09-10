@@ -1,5 +1,5 @@
-use std::collections::{HashMap, VecDeque};
 use std::collections::vec_deque::Iter;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -11,62 +11,58 @@ use crate::parser::EntryType;
 type StrArc = Arc<RwLock<HashMap<String, Entry>>>;
 type ArrArc = Arc<RwLock<HashMap<String, VecDeque<String>>>>;
 
-
 pub fn handle_ping() -> String {
     make_pong_message()
 }
 
 pub fn handle_echo(val: &str) -> String {
-    make_echo_message(val)
+    make_string_message(val)
 }
 
 pub async fn handle_set(k: String, v: EntryType, ttl_ms: Option<u128>, value: StrArc) -> String {
     let entry = match ttl_ms {
         None => Entry::new(v),
-        Some(ttl) => Entry::with_ttl(v, ttl)
+        Some(ttl) => Entry::with_ttl(v, ttl),
     };
 
     {
         let mut db = value.write().await;
-        db.insert(k, entry);                            
+        db.insert(k, entry);
     }
     make_ok_message()
 }
 
 pub async fn handle_get(k: String, value: StrArc) -> String {
     let val: Option<Entry> = {
-                            let guard = value.read().await;
-                            match guard.get(&k) {
-                                None => None,
-                                Some(e) => Some(Entry {
-                                    val: e.val.clone(),
-                                    expires_at: e.expires_at,
-                                })
-                            }
-                            
-                        };
+        let guard = value.read().await;
+        match guard.get(&k) {
+            None => None,
+            Some(e) => Some(Entry {
+                val: e.val.clone(),
+                expires_at: e.expires_at,
+            }),
+        }
+    };
 
-                        match val {
-                            None => {
-                                make_empty_message()
-                            },
-                            Some(v) => {
-                                if v.is_expired() {
-                                    {
-                                        info("value present, but expired - removing");
-                                        let mut guard = value.write().await;
-                                        guard.remove(&k);
-                                    }
-                                    make_empty_message()
-                                } else {
-                                    let src = match v.val {
-                                        EntryType::Str(val) => make_bulk_string(&val),
-                                        _ => make_empty_message()
-                                    };
-                                    src
-                                }
-                            }
-                        }
+    match val {
+        None => make_empty_message(),
+        Some(v) => {
+            if v.is_expired() {
+                {
+                    info("value present, but expired - removing");
+                    let mut guard = value.write().await;
+                    guard.remove(&k);
+                }
+                make_empty_message()
+            } else {
+                let src = match v.val {
+                    EntryType::Str(val) => make_bulk_string(&val),
+                    _ => make_empty_message(),
+                };
+                src
+            }
+        }
+    }
 }
 
 pub enum ArrOpType {
@@ -74,9 +70,13 @@ pub enum ArrOpType {
     Right,
 }
 
-pub async fn handle_push(k: String, vs: Vec<String>, arr_value: ArrArc, op_type: ArrOpType) -> String {
+pub async fn handle_push(
+    k: String,
+    vs: Vec<String>,
+    arr_value: ArrArc,
+    op_type: ArrOpType,
+) -> String {
     let l = {
-                            
         let mut db = arr_value.write().await;
 
         let arr = db.entry(k).or_default();
@@ -84,12 +84,11 @@ pub async fn handle_push(k: String, vs: Vec<String>, arr_value: ArrArc, op_type:
         for v in vs.iter() {
             match op_type {
                 ArrOpType::Right => arr.push_back(v.to_string()),
-                ArrOpType::Left =>  arr.push_front(v.to_string()),
+                ArrOpType::Left => arr.push_front(v.to_string()),
             }
         }
 
         arr.len()
-
     };
 
     make_int_message(l as i64)
@@ -98,41 +97,43 @@ pub async fn handle_push(k: String, vs: Vec<String>, arr_value: ArrArc, op_type:
 pub async fn handle_lrange(key: String, start: i32, stop: i32, arr_value: ArrArc) -> String {
     let default: VecDeque<String> = VecDeque::new();
     let msg = {
-        if start_idx_truly_bigger(start, stop) { make_empty_range_message() } else {
+        if start_idx_truly_bigger(start, stop) {
+            make_empty_range_message()
+        } else {
             let db = arr_value.read().await;
-            
+
             let entry = db.get(&key).unwrap_or(&default);
 
             let u_start: usize = match start < 0 {
                 true => {
                     let tmp = entry.len() as i32 + start;
                     match usize::try_from(tmp) {
-                            Ok(val) => val,
-                            Err(_) => 0
-                        }
+                        Ok(val) => val,
+                        Err(_) => 0,
+                    }
                 }
-                false => start as usize
+                false => start as usize,
             };
 
             let u_stop: usize = match stop < 0 {
                 true => {
                     let tmp = entry.len() as i32 + stop;
                     match usize::try_from(tmp) {
-                            Ok(val) => val,
-                            Err(_) => 0
-                        }
+                        Ok(val) => val,
+                        Err(_) => 0,
+                    }
                 }
-                false => stop as usize
+                false => stop as usize,
             };
 
-            info(&format!("{}, {}", u_start, u_stop));
-
             let rg: Iter<String> = {
-                if entry.len() <= u_start { entry.range(0..0) } else {
+                if entry.len() <= u_start {
+                    entry.range(0..0)
+                } else {
                     if u_stop >= entry.len() {
                         entry.range(u_start..)
                     } else {
-                            entry.range(u_start..u_stop + 1)
+                        entry.range(u_start..u_stop + 1)
                     }
                 }
             };
@@ -144,16 +145,28 @@ pub async fn handle_lrange(key: String, start: i32, stop: i32, arr_value: ArrArc
 }
 
 fn start_idx_truly_bigger(start: i32, stop: i32) -> bool {
-    start > 0 && stop > 0 && start > stop 
+    start > 0 && stop > 0 && start > stop
 }
 
 pub async fn handle_llen(k: String, arr_value: ArrArc) -> String {
     let default: VecDeque<String> = VecDeque::new();
     let db = arr_value.read().await;
-            
+
     let entry = db.get(&k).unwrap_or(&default);
 
     make_int_message(entry.len() as i64)
+}
+
+pub async fn handle_lpop(k: String, arr_value: ArrArc) -> String {
+    let mut db = arr_value.write().await;
+
+    match db.get_mut(&k) {
+        Some(val) => match val.pop_front() {
+            None => make_empty_message(),
+            Some(elem) => make_string_message(&elem),
+        },
+        None => make_empty_message(),
+    }
 }
 
 pub async fn handle_err() -> String {
@@ -164,7 +177,7 @@ fn make_pong_message() -> String {
     String::from("+PONG\r\n")
 }
 
-fn make_echo_message(val: &str) -> String {
+fn make_string_message(val: &str) -> String {
     format!("${}\r\n{}\r\n", val.len(), val)
 }
 

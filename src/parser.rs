@@ -19,10 +19,10 @@ pub enum Op {
     LPush(String, Vec<String>),
     LRange(String, i32, i32),
     Llen(String),
+    Lpop(String),
 }
 
 const MAX_ARGS: usize = 10_000;
-
 
 pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
     let mut ri = req.iter();
@@ -30,21 +30,20 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
     // first byte
     match ri.next() {
         Some(val) => {
-            if *val != b'*' { 
-                return Err("invalid message")
+            if *val != b'*' {
+                return Err("invalid message");
             }
         }
-        None => return Err("invalid message")
+        None => return Err("invalid message"),
     };
 
-    
     let num_args = match get_num_bytes(&mut ri) {
         None => return Err("invalid message"),
-        Some(val) => val
+        Some(val) => val,
     };
 
     if num_args > MAX_ARGS {
-        return Err("too many arguments")
+        return Err("too many arguments");
     }
 
     let mut args: Vec<String> = Vec::with_capacity(num_args);
@@ -93,7 +92,7 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                 Err("invalid message")
             } else {
                 let key = args[1].clone();
-                let mut res: Vec<String> = vec!();
+                let mut res: Vec<String> = vec![];
 
                 for elem in args[2..].iter() {
                     res.push(elem.to_string());
@@ -106,7 +105,7 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                 Err("invalid message")
             } else {
                 let key = args[1].clone();
-                let mut res: Vec<String> = vec!();
+                let mut res: Vec<String> = vec![];
 
                 for elem in args[2..].iter() {
                     res.push(elem.to_string());
@@ -121,15 +120,15 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                 let key = args[1].clone();
 
                 let start = match args[2].trim().parse::<i32>() {
-                        Err(_) => return Err("invalid message"),
-                        Ok(val) => Some(val),
-                    };
+                    Err(_) => return Err("invalid message"),
+                    Ok(val) => Some(val),
+                };
 
                 let stop = match args[3].trim().parse::<i32>() {
-                        Err(_) => return Err("invalid message"),
-                        Ok(val) => Some(val),
-                    };
-                
+                    Err(_) => return Err("invalid message"),
+                    Ok(val) => Some(val),
+                };
+
                 Ok(Op::LRange(key, start.unwrap(), stop.unwrap()))
             }
         }
@@ -141,12 +140,19 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                 Ok(Op::Llen(key))
             }
         }
-        _ => Err("invalid message") 
+        "lpop" => {
+            if args.len() < 2 {
+                Err("invalid message")
+            } else {
+                let key = args[1].clone();
+                Ok(Op::Lpop(key))
+            }
+        }
+        _ => Err("invalid message"),
     }
-    
 }
 
-fn get_num_bytes(ri: &mut Iter<'_, u8>) -> Option<usize>{
+fn get_num_bytes(ri: &mut Iter<'_, u8>) -> Option<usize> {
     let mut num_bytes: usize = 0;
     loop {
         match ri.next() {
@@ -162,7 +168,6 @@ fn get_num_bytes(ri: &mut Iter<'_, u8>) -> Option<usize>{
                 if val.is_ascii_digit() {
                     num_bytes = num_bytes * 10 + (val - b'0') as usize;
                 }
-
             }
         }
     }
@@ -172,13 +177,13 @@ fn get_num_bytes(ri: &mut Iter<'_, u8>) -> Option<usize>{
 
 fn parse_bulk_string(ri: &mut Iter<'_, u8>) -> Result<String, &'static str> {
     match ri.next() {
-        Some(&b'$') => {},
+        Some(&b'$') => {}
         _ => return Err("invalid message: expected '$'"),
     }
 
     let num_bytes = match get_num_bytes(ri) {
         None => return Err("invalid message"),
-        Some(val) => val
+        Some(val) => val,
     };
 
     let mut s: Vec<u8> = Vec::with_capacity(num_bytes);
@@ -187,7 +192,7 @@ fn parse_bulk_string(ri: &mut Iter<'_, u8>) -> Result<String, &'static str> {
             None => return Err("invalid message"),
             Some(&val) => s.push(val),
         }
-    };
+    }
 
     // consume the last \r\n
     match (ri.next(), ri.next()) {

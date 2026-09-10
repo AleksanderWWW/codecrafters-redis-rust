@@ -8,10 +8,11 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use codecrafters_redis::entry::Entry;
-use codecrafters_redis::log::{info, error};
 use codecrafters_redis::handlers::{
-    ArrOpType, handle_echo, handle_err, handle_get, handle_lrange, handle_ping, handle_push, handle_set, handle_llen
+    ArrOpType, handle_echo, handle_err, handle_get, handle_llen, handle_lpop, handle_lrange,
+    handle_ping, handle_push, handle_set,
 };
+use codecrafters_redis::log::{error, info};
 
 type Data = HashMap<String, Entry>;
 type DataArr = HashMap<String, VecDeque<String>>;
@@ -34,9 +35,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let str_data_cl = str_data.clone();
         let arr_data_cl = arr_data.clone();
-        
+
         tokio::spawn(async move {
-            let mut buf = [0; 512];  // TODO: tokyo mut buf
+            let mut buf = [0; 512]; // TODO: tokyo mut buf
 
             loop {
                 let bytes_read = match stream.read(&mut buf).await {
@@ -83,12 +84,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         info(&format!("LLEN {}", k));
                         handle_llen(k, arr_data_cl.clone()).await
                     }
+                    Ok(Op::Lpop(k)) => {
+                        info(&format!("LPOP {}", k));
+                        handle_lpop(k, arr_data_cl.clone()).await
+                    }
                     Err(err) => {
                         error(err);
                         handle_err().await
                     }
                 };
-                
+
                 if let Err(_) = stream.write_all(response.as_bytes()).await {
                     break;
                 }

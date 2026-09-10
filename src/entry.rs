@@ -10,7 +10,10 @@ pub struct Entry {
 
 impl Entry {
     pub fn new(val: EntryType) -> Self {
-        Self { val, expires_at: None }
+        Self {
+            val,
+            expires_at: None,
+        }
     }
 
     pub fn with_ttl(val: EntryType, ttl_ms: u128) -> Self {
@@ -28,10 +31,13 @@ impl Entry {
     pub fn is_expired(&self) -> bool {
         match self.expires_at {
             None => false,
-            Some(expires_at) => expires_at < SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Time went backwards")
-                .as_millis()
+            Some(expires_at) => {
+                expires_at
+                    < SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time went backwards")
+                        .as_millis()
+            }
         }
     }
 }
