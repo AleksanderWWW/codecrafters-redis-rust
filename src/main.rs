@@ -10,7 +10,7 @@ use tokio::net::TcpListener;
 use codecrafters_redis::entry::Entry;
 use codecrafters_redis::handlers::{
     ArrOpType, handle_echo, handle_err, handle_get, handle_llen, handle_lpop, handle_lrange,
-    handle_ping, handle_push, handle_set,
+    handle_ping, handle_push, handle_set, handle_blpop
 };
 use codecrafters_redis::log::{error, info};
 
@@ -87,6 +87,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(Op::Lpop(k, n)) => {
                         info(&format!("LPOP {}", k));
                         handle_lpop(k, n, arr_data_cl.clone()).await
+                    }
+                    Ok(Op::Blpop(k, timeout)) => {
+                        info(&format!("BLPOP {} {}", k, timeout));
+                        handle_blpop(k, timeout, arr_data_cl.clone()).await
                     }
                     Err(err) => {
                         error(err);

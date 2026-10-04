@@ -1,9 +1,12 @@
+use core::time;
 use std::cmp::min;
 use std::collections::vec_deque::Iter;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
+use std::thread::sleep;
 
 use tokio::sync::RwLock;
+use tokio::time::Sleep;
 
 use crate::entry::Entry;
 use crate::log::info;
@@ -172,23 +175,49 @@ pub async fn handle_lpop(k: String, n: Option<u64>, arr_value: ArrArc) -> String
                 }
             }
                 Some(n_elems) => {
-                    let n_to_remove = min(n_elems, val.len() as u64);
-                    let mut removed_elems: Vec<String> = vec!();
-
-                    for _ in 0..n_to_remove {
-                        match val.pop_front() {
-                            None => break,
-                            Some(x) => removed_elems.push(x),
-                        }
-                    }
-
-                    make_range_message(removed_elems.iter().collect())
+                    do_lpop(n_elems, val)
                 }
             }
         }
     }
 }
 
+fn do_lpop(n_elems: u64, val: &mut VecDeque<String>) -> String {
+    let n_to_remove = min(n_elems, val.len() as u64);
+    let mut removed_elems: Vec<String> = vec!();
+
+    for _ in 0..n_to_remove {
+        match val.pop_front() {
+            None => break,
+            Some(x) => removed_elems.push(x),
+        }
+    }
+
+    make_range_message(removed_elems.iter().collect())
+}
+
+pub async fn handle_blpop(k: String, timeout: u32, arr_value: ArrArc) -> String {
+    let mut db = arr_value.write().await;
+
+    loop {
+        match db.get_mut(&k) {
+            None => {
+                sleep(time::Duration::from_millis(1000));
+                continue;
+            },
+            Some(val) => {
+                if val.len() == 0 {
+                    sleep(time::Duration::from_millis(1000));
+                    continue;
+                }
+
+                val.push_front(k);
+                
+                return do_lpop(2, val)
+            }
+        }
+    }
+}
 
 pub async fn handle_err() -> String {
     make_empty_message()
