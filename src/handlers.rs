@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::thread::sleep;
 
 use tokio::sync::RwLock;
-use tokio::time::Sleep;
 
 use crate::entry::Entry;
 use crate::log::info;
@@ -197,9 +196,10 @@ fn do_lpop(n_elems: u64, val: &mut VecDeque<String>) -> String {
 }
 
 pub async fn handle_blpop(k: String, timeout: u32, arr_value: ArrArc) -> String {
-    let mut db = arr_value.write().await;
-
+    
     loop {
+        let mut db = arr_value.write().await;
+
         match db.get_mut(&k) {
             None => {
                 sleep(time::Duration::from_millis(1000));
