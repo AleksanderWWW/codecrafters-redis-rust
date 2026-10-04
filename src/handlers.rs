@@ -3,7 +3,7 @@ use std::cmp::min;
 use std::collections::vec_deque::Iter;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use std::thread::sleep;
+use tokio::time::sleep;
 
 use tokio::sync::RwLock;
 
@@ -195,27 +195,25 @@ fn do_lpop(n_elems: u64, val: &mut VecDeque<String>) -> String {
     make_range_message(removed_elems.iter().collect())
 }
 
-pub async fn handle_blpop(k: String, timeout: u32, arr_value: ArrArc) -> String {
-    
+pub async fn handle_blpop(k: String, _timeout: u32, arr_value: ArrArc) -> String {
     loop {
-        let mut db = arr_value.write().await;
-
-        match db.get_mut(&k) {
-            None => {
-                sleep(time::Duration::from_millis(1000));
-                continue;
-            },
-            Some(val) => {
-                if val.len() == 0 {
-                    sleep(time::Duration::from_millis(1000));
-                    continue;
-                }
-
-                val.push_front(k);
-                
-                return do_lpop(2, val)
+        // 1. Scope the write lock so it is dropped immediately after checking/popping
+        let popped_val = {
+            let mut db = arr_value.write().await;
+            if let Some(val) = db.get_mut(&k) {
+                val.pop_front() // Pops 1 element if list is not empty
+            } else {
+                None
             }
+        };
+
+        // 2. If an element was popped, construct the [key, element] RESP array response
+        if let Some(elem) = popped_val {
+            return make_range_message(vec![&k, &elem]);
         }
+
+        // 3. Yield execution & sleep asynchronously WITHOUT holding any lock
+        sleep(std::time::Duration::from_millis(10)).await;
     }
 }
 
