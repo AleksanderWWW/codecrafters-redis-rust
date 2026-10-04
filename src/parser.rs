@@ -20,7 +20,7 @@ pub enum Op {
     LRange(String, i32, i32),
     Llen(String),
     Lpop(String, Option<u64>),
-    Blpop(String, u32),
+    Blpop(String, f64),
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -163,7 +163,7 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                 Err("too few arguments to BLPOP")
             } else {
                 let key = args[1].clone();
-                let timeout = match args[2].trim().parse::<u32>() {
+                let timeout = match args[2].trim().parse::<f64>() {
                     Err(_) => return Err("could not parse timout to BLPOP"),
                     Ok(val) => val
                 };

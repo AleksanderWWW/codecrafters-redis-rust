@@ -1,9 +1,8 @@
-use core::time;
 use std::cmp::min;
 use std::collections::vec_deque::Iter;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use tokio::time::sleep;
+use tokio::time::{sleep, Duration, Instant};
 
 use tokio::sync::RwLock;
 
@@ -195,7 +194,12 @@ fn do_lpop(n_elems: u64, val: &mut VecDeque<String>) -> String {
     make_range_message(removed_elems.iter().collect())
 }
 
-pub async fn handle_blpop(k: String, _timeout: u32, arr_value: ArrArc) -> String {
+pub async fn handle_blpop(k: String, timeout: f64, arr_value: ArrArc) -> String {
+    
+    let deadline = Instant::now() + Duration::from_millis((timeout * 1000.0) as u64);
+
+    let has_timeout = timeout > 0.0;
+
     loop {
         let popped_val = {
             let mut db = arr_value.write().await;
@@ -210,6 +214,9 @@ pub async fn handle_blpop(k: String, _timeout: u32, arr_value: ArrArc) -> String
             return make_range_message(vec![&k, &elem]);
         }
 
+        if has_timeout && Instant::now() > deadline {
+            return make_empty_message()
+        }
         sleep(std::time::Duration::from_millis(10)).await;
     }
 }
