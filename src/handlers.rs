@@ -215,7 +215,7 @@ pub async fn handle_blpop(k: String, timeout: f64, arr_value: ArrArc) -> String 
         }
 
         if has_timeout && Instant::now() > deadline {
-            return make_empty_message()
+            return make_range_message(vec!())
         }
         sleep(std::time::Duration::from_millis(10)).await;
     }
