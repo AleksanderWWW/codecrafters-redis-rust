@@ -9,8 +9,7 @@ use tokio::net::TcpListener;
 
 use codecrafters_redis::entry::Entry;
 use codecrafters_redis::handlers::{
-    ArrOpType, handle_echo, handle_err, handle_get, handle_llen, handle_lpop, handle_lrange,
-    handle_ping, handle_push, handle_set, handle_blpop
+    ArrOpType, handle_blpop, handle_echo, handle_err, handle_get, handle_llen, handle_lpop, handle_lrange, handle_ping, handle_push, handle_set, handle_type
 };
 use codecrafters_redis::log::{error, info};
 
@@ -88,6 +87,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(Op::Blpop(k, timeout)) => {
                         info(&format!("BLPOP {} {}", k, timeout));
                         handle_blpop(k, timeout, data_cl.clone()).await
+                    }
+                    Ok(Op::Type(k)) => {
+                        info(&format!("TYPE {}", k));
+                        handle_type(k, data_cl.clone()).await
                     }
                     Err(err) => {
                         error(err);

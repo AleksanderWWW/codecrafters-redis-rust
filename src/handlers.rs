@@ -247,6 +247,19 @@ pub async fn handle_blpop(k: String, timeout: f64, arr_value: EntryArc) -> Strin
     }
 }
 
+pub async fn handle_type(k: String, arr_value: EntryArc) -> String {
+    let db = arr_value.read().await;
+
+    let Some(entry) = db.get(&k) else {
+        return make_string_message("none")
+    };
+
+    match entry.val {
+        EntryType::List(_) => return make_string_message("list"),
+        EntryType::Str(_) => return make_string_message("string"),
+    }
+}
+
 pub async fn handle_err() -> String {
     make_empty_message()
 }

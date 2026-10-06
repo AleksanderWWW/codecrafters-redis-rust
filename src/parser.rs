@@ -20,6 +20,7 @@ pub enum Op {
     Llen(String),
     Lpop(String, Option<u64>),
     Blpop(String, f64),
+    Type(String)
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -65,7 +66,7 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
         }
         "get" => {
             if args.len() < 2 {
-                Err("invalid error")
+                Err("invalid message")
             } else {
                 let key = args[1].clone();
                 Ok(Op::Get(key))
@@ -169,6 +170,14 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
 
                 Ok(Op::Blpop(key, timeout))
 
+            }
+        }
+        "type" => {
+              if args.len() < 2 {
+                Err("invalid message")
+            } else {
+                let key = args[1].clone();
+                Ok(Op::Type(key))
             }
         }
         _ => Err("invalid message"),
