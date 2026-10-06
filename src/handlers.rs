@@ -251,12 +251,12 @@ pub async fn handle_type(k: String, arr_value: EntryArc) -> String {
     let db = arr_value.read().await;
 
     let Some(entry) = db.get(&k) else {
-        return make_string_message("none")
+        return make_simple_string_message("none")
     };
 
     match entry.val {
-        EntryType::List(_) => return make_string_message("list"),
-        EntryType::Str(_) => return make_string_message("string"),
+        EntryType::List(_) => return make_simple_string_message("list"),
+        EntryType::Str(_) => return make_simple_string_message("string"),
     }
 }
 
@@ -270,6 +270,10 @@ fn make_pong_message() -> String {
 
 fn make_string_message(val: &str) -> String {
     format!("${}\r\n{}\r\n", val.len(), val)
+}
+
+fn make_simple_string_message(val: &str) -> String {
+    format!("+{}\r\n", val)
 }
 
 fn make_ok_message() -> String {
