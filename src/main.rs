@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use codecrafters_redis::parser::{Op, parse};
@@ -15,7 +15,6 @@ use codecrafters_redis::handlers::{
 use codecrafters_redis::log::{error, info};
 
 type Data = HashMap<String, Entry>;
-type DataArr = HashMap<String, VecDeque<String>>;
 
 const HOST: &str = "127.0.0.1";
 const PORT: &str = "6379";
@@ -27,14 +26,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info(&format!("listening on port {}", PORT));
 
-    let str_data = Arc::new(RwLock::new(Data::new()));
-    let arr_data = Arc::new(RwLock::new(DataArr::new()));
+    let data = Arc::new(RwLock::new(Data::new()));
 
     loop {
         let (mut stream, _) = listener.accept().await?;
 
-        let str_data_cl = str_data.clone();
-        let arr_data_cl = arr_data.clone();
+        let data_cl = data.clone();
 
         tokio::spawn(async move {
             let mut buf = [0; 512]; // TODO: tokyo mut buf
@@ -62,35 +59,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     Ok(Op::Set(k, v, ttl_ms)) => {
                         info(&format!("SET {} {:?}", k, v));
-                        handle_set(k, v, ttl_ms, str_data_cl.clone()).await
+                        handle_set(k, v, ttl_ms, data_cl.clone()).await
                     }
                     Ok(Op::Get(k)) => {
                         info(&format!("GET {}", k));
-                        handle_get(k, str_data_cl.clone()).await
+                        handle_get(k, data_cl.clone()).await
                     }
                     Ok(Op::RPush(k, vs)) => {
                         info(&format!("RPUSH {}", k));
-                        handle_push(k, vs, arr_data_cl.clone(), ArrOpType::Right).await
+                        handle_push(k, vs, data_cl.clone(), ArrOpType::Right).await
                     }
                     Ok(Op::LPush(k, vs)) => {
                         info(&format!("LPUSH {}", k));
-                        handle_push(k, vs, arr_data_cl.clone(), ArrOpType::Left).await
+                        handle_push(k, vs, data_cl.clone(), ArrOpType::Left).await
                     }
                     Ok(Op::LRange(key, start, stop)) => {
                         info(&format!("LRANGE {} {} {}", key, start, stop));
-                        handle_lrange(key, start, stop, arr_data_cl.clone()).await
+                        handle_lrange(key, start, stop, data_cl.clone()).await
                     }
                     Ok(Op::Llen(k)) => {
                         info(&format!("LLEN {}", k));
-                        handle_llen(k, arr_data_cl.clone()).await
+                        handle_llen(k, data_cl.clone()).await
                     }
                     Ok(Op::Lpop(k, n)) => {
                         info(&format!("LPOP {}", k));
-                        handle_lpop(k, n, arr_data_cl.clone()).await
+                        handle_lpop(k, n, data_cl.clone()).await
                     }
                     Ok(Op::Blpop(k, timeout)) => {
                         info(&format!("BLPOP {} {}", k, timeout));
-                        handle_blpop(k, timeout, arr_data_cl.clone()).await
+                        handle_blpop(k, timeout, data_cl.clone()).await
                     }
                     Err(err) => {
                         error(err);

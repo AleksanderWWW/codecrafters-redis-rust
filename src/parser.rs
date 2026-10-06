@@ -1,12 +1,11 @@
-use std::slice::Iter;
+use std::{collections::VecDeque, slice::Iter};
 
 use crate::log::info;
 
 #[derive(Debug, Clone)]
 pub enum EntryType {
     Str(String),
-    Int(i128),
-    Bool(bool),
+    List(VecDeque<String>)
 }
 
 #[derive(Debug)]

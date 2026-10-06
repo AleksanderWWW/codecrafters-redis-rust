@@ -10,8 +10,7 @@ use crate::entry::Entry;
 use crate::log::info;
 use crate::parser::EntryType;
 
-type StrArc = Arc<RwLock<HashMap<String, Entry>>>;
-type ArrArc = Arc<RwLock<HashMap<String, VecDeque<String>>>>;
+type EntryArc = Arc<RwLock<HashMap<String, Entry>>>;
 
 pub fn handle_ping() -> String {
     make_pong_message()
@@ -21,7 +20,7 @@ pub fn handle_echo(val: &str) -> String {
     make_string_message(val)
 }
 
-pub async fn handle_set(k: String, v: EntryType, ttl_ms: Option<u128>, value: StrArc) -> String {
+pub async fn handle_set(k: String, v: EntryType, ttl_ms: Option<u128>, value: EntryArc) -> String {
     let entry = match ttl_ms {
         None => Entry::new(v),
         Some(ttl) => Entry::with_ttl(v, ttl),
@@ -34,7 +33,7 @@ pub async fn handle_set(k: String, v: EntryType, ttl_ms: Option<u128>, value: St
     make_ok_message()
 }
 
-pub async fn handle_get(k: String, value: StrArc) -> String {
+pub async fn handle_get(k: String, value: EntryArc) -> String {
     let val: Option<Entry> = {
         let guard = value.read().await;
         match guard.get(&k) {
@@ -75,40 +74,51 @@ pub enum ArrOpType {
 pub async fn handle_push(
     k: String,
     vs: Vec<String>,
-    arr_value: ArrArc,
+    arr_value: EntryArc,
     op_type: ArrOpType,
 ) -> String {
-    let l = {
-        let mut db = arr_value.write().await;
+    let mut db = arr_value.write().await;
 
-        let arr = db.entry(k).or_default();
+    let arr = db.entry(k).or_insert_with(|| Entry { val: EntryType::List(VecDeque::default()), expires_at: None });
 
+    if arr.is_expired() {
+        arr.val = EntryType::List(VecDeque::new());
+        arr.expires_at = None;
+    }
+
+    if let EntryType::List(ref mut _arr) = arr.val {
         for v in vs.iter() {
             match op_type {
-                ArrOpType::Right => arr.push_back(v.to_string()),
-                ArrOpType::Left => arr.push_front(v.to_string()),
+                ArrOpType::Right => _arr.push_back(v.to_string()),
+                ArrOpType::Left => _arr.push_front(v.to_string()),
             }
         }
-
-        arr.len()
-    };
-
-    make_int_message(l as i64)
+        return make_int_message(_arr.len() as i64)
+    } else {
+        return make_wrongtype_message()
+    }
 }
 
-pub async fn handle_lrange(key: String, start: i32, stop: i32, arr_value: ArrArc) -> String {
-    let default: VecDeque<String> = VecDeque::new();
+pub async fn handle_lrange(key: String, start: i32, stop: i32, arr_value: EntryArc) -> String {
     let msg = {
         if start_idx_truly_bigger(start, stop) {
             make_empty_range_message()
         } else {
             let db = arr_value.read().await;
 
-            let entry = db.get(&key).unwrap_or(&default);
+            let entry = match db.get(&key) {
+                Some(en) => en,
+                None => return make_empty_range_message()
+            };
+            
+            let arr = match entry.val {
+                EntryType::List(ref arr) => arr,
+                _ => return make_wrongtype_message()
+            };
 
             let u_start: usize = match start < 0 {
                 true => {
-                    let tmp = entry.len() as i32 + start;
+                    let tmp = arr.len() as i32 + start;
                     match usize::try_from(tmp) {
                         Ok(val) => val,
                         Err(_) => 0,
@@ -119,7 +129,7 @@ pub async fn handle_lrange(key: String, start: i32, stop: i32, arr_value: ArrArc
 
             let u_stop: usize = match stop < 0 {
                 true => {
-                    let tmp = entry.len() as i32 + stop;
+                    let tmp = arr.len() as i32 + stop;
                     match usize::try_from(tmp) {
                         Ok(val) => val,
                         Err(_) => 0,
@@ -129,13 +139,13 @@ pub async fn handle_lrange(key: String, start: i32, stop: i32, arr_value: ArrArc
             };
 
             let rg: Iter<String> = {
-                if entry.len() <= u_start {
-                    entry.range(0..0)
+                if arr.len() <= u_start {
+                    arr.range(0..0)
                 } else {
-                    if u_stop >= entry.len() {
-                        entry.range(u_start..)
+                    if u_stop >= arr.len() {
+                        arr.range(u_start..)
                     } else {
-                        entry.range(u_start..u_stop + 1)
+                        arr.range(u_start..u_stop + 1)
                     }
                 }
             };
@@ -150,34 +160,44 @@ fn start_idx_truly_bigger(start: i32, stop: i32) -> bool {
     start > 0 && stop > 0 && start > stop
 }
 
-pub async fn handle_llen(k: String, arr_value: ArrArc) -> String {
-    let default: VecDeque<String> = VecDeque::new();
+pub async fn handle_llen(k: String, arr_value: EntryArc) -> String {
     let db = arr_value.read().await;
 
-    let entry = db.get(&k).unwrap_or(&default);
+    let Some(entry) = db.get(&k) else {
+        return make_int_message(0)
+    };
 
-    make_int_message(entry.len() as i64)
+    match entry.val {
+        EntryType::List(ref arr) => return make_int_message(arr.len() as i64),
+        _ => return make_wrongtype_message(),
+    };
+    
 }
 
-pub async fn handle_lpop(k: String, n: Option<u64>, arr_value: ArrArc) -> String {
+pub async fn handle_lpop(k: String, n: Option<u64>, arr_value: EntryArc) -> String {
     let mut db = arr_value.write().await;
 
-    match db.get_mut(&k) {
-        None => make_empty_message(),
-        Some(val) => {
-            match n {
-                None => {
-                    match val.pop_front() {
-                        None => make_empty_message(),
-                        Some(elem) => make_string_message(&elem),
-                }
-            }
-                Some(n_elems) => {
-                    do_lpop(n_elems, val)
-                }
+    let Some(entry) = db.get_mut(&k) else {
+        return make_empty_message();
+    };
+
+    let EntryType::List(ref mut arr) = entry.val else {
+        return make_wrongtype_message()
+    };
+
+    let msg = match n {
+        None => {
+            match arr.pop_front() {
+                None => make_empty_message(),
+                Some(elem) => make_string_message(&elem),
             }
         }
-    }
+        Some(n_elems) => {
+            do_lpop(n_elems, arr)
+        }
+    };
+
+    msg
 }
 
 fn do_lpop(n_elems: u64, val: &mut VecDeque<String>) -> String {
@@ -194,7 +214,7 @@ fn do_lpop(n_elems: u64, val: &mut VecDeque<String>) -> String {
     make_range_message(removed_elems.iter().collect())
 }
 
-pub async fn handle_blpop(k: String, timeout: f64, arr_value: ArrArc) -> String {
+pub async fn handle_blpop(k: String, timeout: f64, arr_value: EntryArc) -> String {
     
     let deadline = Instant::now() + Duration::from_millis((timeout * 1000.0) as u64);
 
@@ -203,8 +223,14 @@ pub async fn handle_blpop(k: String, timeout: f64, arr_value: ArrArc) -> String 
     loop {
         let popped_val = {
             let mut db = arr_value.write().await;
-            if let Some(val) = db.get_mut(&k) {
-                val.pop_front() // Pops 1 element if list is not empty
+
+            
+            if let Some(entry) = db.get_mut(&k) {
+                if let EntryType::List(ref mut arr) = entry.val {
+                    arr.pop_front()
+                } else {
+                    return make_wrongtype_message()
+                }
             } else {
                 None
             }
@@ -267,4 +293,8 @@ fn make_range_message(rg: Vec<&String>) -> String {
 
 fn make_null_array_message() -> String {
     format!("*{}\r\n", -1)
+}
+
+pub fn make_wrongtype_message() -> String {
+    String::from("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n")
 }
