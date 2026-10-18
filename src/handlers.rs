@@ -8,7 +8,8 @@ use tokio::sync::RwLock;
 
 use crate::entry::Entry;
 use crate::log::info;
-use crate::parser::EntryType;
+use crate::entry::EntryType;
+use crate::stream::{Stream, StreamEntry};
 
 type EntryArc = Arc<RwLock<HashMap<String, Entry>>>;
 
@@ -257,7 +258,25 @@ pub async fn handle_type(k: String, arr_value: EntryArc) -> String {
     match entry.val {
         EntryType::List(_) => return make_simple_string_message("list"),
         EntryType::Str(_) => return make_simple_string_message("string"),
+        EntryType::Stream(_) => return make_simple_string_message("stream")
     }
+}
+
+pub async fn handle_xadd(k: String, se: StreamEntry, arr_value: EntryArc) -> String {
+    let mut db = arr_value.write().await;
+
+    let entry_id = se.entry_id.clone();
+
+    let entry = db.entry(k).or_insert_with(|| {
+        Entry::new(EntryType::Stream(Stream::new(None)))
+    });
+
+    match entry.val {
+        EntryType::Stream(ref mut s) => s.insert(se),
+        _ => return make_wrongtype_message()
+    }
+
+    make_simple_string_message(&entry_id)
 }
 
 pub async fn handle_err() -> String {

@@ -1,12 +1,9 @@
-use std::{collections::VecDeque, slice::Iter};
+use std::{collections::HashMap, slice::Iter};
 
+use crate::entry::EntryType;
 use crate::log::info;
+use crate::stream::StreamEntry;
 
-#[derive(Debug, Clone)]
-pub enum EntryType {
-    Str(String),
-    List(VecDeque<String>)
-}
 
 #[derive(Debug)]
 pub enum Op {
@@ -20,7 +17,8 @@ pub enum Op {
     Llen(String),
     Lpop(String, Option<u64>),
     Blpop(String, f64),
-    Type(String)
+    Type(String),
+    XAdd(String, StreamEntry)
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -178,6 +176,20 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
             } else {
                 let key = args[1].clone();
                 Ok(Op::Type(key))
+            }
+        }
+        "xadd" => {
+            if args.len() < 3 {
+                Err("invalid message")
+            } else {
+                let key = args[1].clone();
+                let id = args[2].clone();
+                let data: HashMap<String, String> = HashMap::new();
+
+                Ok(Op::XAdd(key, StreamEntry{
+                    entry_id: id,
+                    data
+                }))
             }
         }
         _ => Err("invalid message"),

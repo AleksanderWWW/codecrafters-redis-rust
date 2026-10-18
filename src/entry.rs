@@ -1,6 +1,14 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{collections::VecDeque, time::{SystemTime, UNIX_EPOCH}};
 
-use crate::parser::EntryType;
+use crate::stream::Stream;
+
+
+#[derive(Debug, Clone)]
+pub enum EntryType {
+    Str(String),
+    List(VecDeque<String>),
+    Stream(Stream)
+}
 
 #[derive(Debug, Clone)]
 pub struct Entry {
