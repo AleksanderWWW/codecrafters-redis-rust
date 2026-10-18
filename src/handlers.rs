@@ -276,7 +276,7 @@ pub async fn handle_xadd(k: String, se: StreamEntry, arr_value: EntryArc) -> Str
         _ => return make_wrongtype_message()
     }
 
-    make_simple_string_message(&entry_id)
+    make_bulk_string(&entry_id)
 }
 
 pub async fn handle_err() -> String {
