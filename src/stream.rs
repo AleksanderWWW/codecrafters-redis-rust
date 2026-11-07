@@ -48,7 +48,7 @@ impl Stream {
         }
     }
 
-    pub fn insert(&mut self, val: StreamEntry) -> Result<(), &'static str> {
+    pub fn insert(&mut self, val: StreamEntry) -> Result<StreamId, &'static str> {
         let id = val.entry_id;
         if id.milisecond_time == 0 && id.serial_num == 0 {
             return Err("The ID specified in XADD must be greater than 0-0")
@@ -64,6 +64,6 @@ impl Stream {
         }
         self.entries.insert(parsed_id, val);
         self.latest_id = parsed_id;
-        Ok(())
+        Ok(parsed_id)
     }
 }

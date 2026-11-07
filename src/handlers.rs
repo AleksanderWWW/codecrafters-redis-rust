@@ -273,14 +273,15 @@ pub async fn handle_xadd(k: String, se: StreamEntry, arr_value: EntryArc) -> Str
 
     match entry.val {
         EntryType::Stream(ref mut s) => {
-            if let Err(e) = s.insert(se) {
-                return make_error_message(e)
+            match s.insert(se) {
+                Err(e) => return make_error_message(e),
+                Ok(pid) => return make_bulk_string(
+                    &format!("{}-{}", pid.milisecond_time, pid.serial_num)
+                )
             }
         },
         _ => return make_wrongtype_message()
     }
-
-    make_bulk_string(&format!("{}-{}", entry_id.milisecond_time, entry_id.serial_num))
 }
 
 pub async fn handle_err() -> String {
