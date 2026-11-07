@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{collections::{BTreeMap, HashMap}, thread::panicking};
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Copy)]
 pub struct StreamId {
@@ -56,7 +56,12 @@ impl Stream {
 
         let mut parsed_id = id;
         if parsed_id.serial_num == u64::MAX {
-            parsed_id = parsed_id.replace_seq(self.latest_id.serial_num + 1);
+            if parsed_id.milisecond_time == self.latest_id.milisecond_time {
+                parsed_id = parsed_id.replace_seq(self.latest_id.serial_num + 1);
+            } else {
+                // e.g. latest: 0-4, new 1-* so new parsed should be 1-0
+                parsed_id = parsed_id.replace_seq(0)
+            }
         }
 
         if id <= self.latest_id{
