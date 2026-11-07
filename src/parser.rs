@@ -186,17 +186,22 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                 let id = args[2].clone();
                 let data: HashMap<String, String> = HashMap::new();
 
+                if id == "*" {
+                    return Ok(Op::XAdd(key, StreamEntry{
+                        entry_id: StreamId{
+                            milisecond_time: u64::MAX,
+                            serial_num: u64::MAX
+                        },
+                        data
+                    }))
+                }
+
                 let parts: Vec<&str> = id.split("-").collect();
 
-                let mili_time: u64;
-                if parts[0].trim() == "*" {
-                    mili_time = u64::MAX;
-                } else {
-                    mili_time = match parts[0].trim().parse::<u64>() {
+                let mili_time = match parts[0].trim().parse::<u64>() {
                         Ok(val) => val,
                         Err(_) => return Err("Could not parse milisecond time from ID")
-                    };
-                }
+                };
 
                 let seq: u64;
                 if parts[1].trim() == "*" {
