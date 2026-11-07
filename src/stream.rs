@@ -1,4 +1,12 @@
 use std::{collections::{BTreeMap, HashMap}};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub fn current_timestamp_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_millis() as u64
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, PartialOrd, Ord, Copy)]
 pub struct StreamId {
@@ -55,6 +63,9 @@ impl Stream {
         }
 
         let mut parsed_id = id;
+        if parsed_id.milisecond_time == u64::MAX {
+            parsed_id = parsed_id.replace_ms_time(current_timestamp_millis())
+        }
         if parsed_id.serial_num == u64::MAX {
             if parsed_id.milisecond_time == self.latest_id.milisecond_time {
                 // e.g. latest 0-4, new 0-* so new parsed should be 0-5
