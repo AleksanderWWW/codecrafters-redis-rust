@@ -34,6 +34,9 @@ impl Stream {
 
     pub fn insert(&mut self, val: StreamEntry) -> Result<(), &'static str> {
         let id = val.entry_id;
+        if id.milisecond_time == 0 && id.serial_num == 0 {
+            return Err("The ID specified in XADD must be greater than 0-0")
+        }
         if id <= self.latest_id{
             return Err("The ID specified in XADD is equal or smaller than the target stream top item")
         }

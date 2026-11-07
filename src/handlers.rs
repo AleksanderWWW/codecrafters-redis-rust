@@ -283,10 +283,6 @@ pub async fn handle_xadd(k: String, se: StreamEntry, arr_value: EntryArc) -> Str
     make_bulk_string(&format!("{}-{}", entry_id.milisecond_time, entry_id.serial_num))
 }
 
-fn is_id_valid(current_id: StreamId, last_id: StreamId) -> bool {
-    return current_id > last_id
-}
-
 pub async fn handle_err() -> String {
     make_empty_message()
 }
