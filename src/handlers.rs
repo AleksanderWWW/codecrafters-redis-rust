@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use crate::entry::Entry;
 use crate::log::info;
 use crate::entry::EntryType;
-use crate::stream::{Stream, StreamEntry};
+use crate::stream::{Stream, StreamEntry, StreamId};
 
 type EntryArc = Arc<RwLock<HashMap<String, Entry>>>;
 
@@ -272,15 +272,28 @@ pub async fn handle_xadd(k: String, se: StreamEntry, arr_value: EntryArc) -> Str
     });
 
     match entry.val {
-        EntryType::Stream(ref mut s) => s.insert(se),
+        EntryType::Stream(ref mut s) => {
+            if let Err(e) = s.insert(se) {
+                return make_error_message(e)
+            }
+        },
         _ => return make_wrongtype_message()
     }
 
-    make_bulk_string(&entry_id)
+    make_bulk_string(&format!("{}-{}", entry_id.milisecond_time, entry_id.serial_num))
+}
+
+fn is_id_valid(current_id: StreamId, last_id: StreamId) -> bool {
+    return current_id > last_id
 }
 
 pub async fn handle_err() -> String {
     make_empty_message()
+}
+
+
+fn make_error_message(val: &str) -> String {
+    format!("-ERR {}\r\n", val)
 }
 
 fn make_pong_message() -> String {
