@@ -56,7 +56,7 @@ impl Stream {
 
         let mut parsed_id = id;
         if parsed_id.serial_num == u64::MAX {
-            parsed_id = parsed_id.replace_seq(id.serial_num + 1);
+            parsed_id = parsed_id.replace_seq(self.latest_id.serial_num + 1);
         }
 
         if id <= self.latest_id{
