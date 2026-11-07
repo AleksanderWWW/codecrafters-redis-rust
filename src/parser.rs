@@ -188,16 +188,26 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
 
                 let parts: Vec<&str> = id.split("-").collect();
 
-                let mili_time = match parts[0].trim().parse::<u64>() {
-                    Ok(val) => val,
-                    Err(_) => return Err("Could not parse milisecond time from ID")
-                };
+                let mili_time: u64;
+                if parts[0].trim() == "*" {
+                    mili_time = u64::MAX;
+                } else {
+                    mili_time = match parts[0].trim().parse::<u64>() {
+                        Ok(val) => val,
+                        Err(_) => return Err("Could not parse milisecond time from ID")
+                    };
+                }
 
-                let seq = match parts[1].trim().parse::<u64>() {
-                    Ok(val) => val,
-                    Err(_) => return Err("Could not parse sequence number from ID")
-                };
-
+                let seq: u64;
+                if parts[1].trim() == "*" {
+                    seq = u64::MAX;
+                } else {
+                    seq = match parts[0].trim().parse::<u64>() {
+                        Ok(val) => val,
+                        Err(_) => return Err("Could not parse milisecond time from ID")
+                    };
+                }
+                
                 Ok(Op::XAdd(key, StreamEntry{
                     entry_id: StreamId{
                         milisecond_time: mili_time,
