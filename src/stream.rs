@@ -1,5 +1,9 @@
-use std::{collections::{BTreeMap, HashMap}};
+use std::{cmp::max, collections::{BTreeMap, HashMap}};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::ops::Bound::Included;
+use itertools::Itertools;
+
+use crate::{AUTO_SENTINEL, handlers::{make_array_message, make_bulk_string}};
 
 pub fn current_timestamp_millis() -> u64 {
     SystemTime::now()
@@ -28,6 +32,10 @@ impl StreamId {
             serial_num: val
         }
     }
+
+    pub fn to_string(&self) -> String {
+        format!("{}-{}", self.milisecond_time, self.serial_num)
+    }
 }
 
 
@@ -37,10 +45,40 @@ pub struct StreamEntry {
     pub data: HashMap<String, String>
 }
 
+
+pub enum RespItem {
+    Bulk(String),
+    Array(Vec<RespItem>),
+}
+
+pub fn serialize_resp_item(item: &RespItem) -> String {
+    match item {
+        RespItem::Bulk(s) => make_bulk_string(s),
+        RespItem::Array(arr) => {
+            let inner = arr.iter().map(serialize_resp_item).join("");
+            format!("*{}\r\n{}", arr.len(), inner)
+        }
+    }
+}
+
+pub fn entry_to_resp_arr(entry: &StreamEntry) -> RespItem {
+    let mut kv_items = Vec::with_capacity(entry.data.len() * 2);
+    for (k, v) in &entry.data {
+        kv_items.push(RespItem::Bulk(k.clone()));
+        kv_items.push(RespItem::Bulk(v.clone()));
+    }
+
+    RespItem::Array(vec![
+        RespItem::Bulk(entry.entry_id.to_string()),
+        RespItem::Array(kv_items),
+    ])
+}
+
+
 #[derive(Debug, Clone)]
 pub struct Stream {
     pub entries: BTreeMap<StreamId, StreamEntry>,
-    pub latest_id: StreamId
+    pub latest_id: StreamId,
 }
 
 impl Stream {
@@ -52,7 +90,10 @@ impl Stream {
             entries.insert(id, v);
             Self {entries, latest_id: id}
         } else {
-            Self{entries: BTreeMap::new(), latest_id: StreamId { milisecond_time: 0, serial_num: 0}}
+            Self{
+                entries: BTreeMap::new(), 
+                latest_id: StreamId { milisecond_time: 0, serial_num: 0},
+            }
         }
     }
 
@@ -63,10 +104,13 @@ impl Stream {
         }
 
         let mut parsed_id = id;
-        if parsed_id.milisecond_time == u64::MAX {
-            parsed_id = parsed_id.replace_ms_time(current_timestamp_millis())
+        if parsed_id.milisecond_time == AUTO_SENTINEL {
+            // account for clock skew - don't allow to go back in time
+            parsed_id = parsed_id.replace_ms_time(
+                max(current_timestamp_millis(), self.latest_id.milisecond_time)
+            )
         }
-        if parsed_id.serial_num == u64::MAX {
+        if parsed_id.serial_num == AUTO_SENTINEL {
             if parsed_id.milisecond_time == self.latest_id.milisecond_time {
                 // e.g. latest 0-4, new 0-* so new parsed should be 0-5
                 parsed_id = parsed_id.replace_seq(self.latest_id.serial_num + 1);
@@ -76,11 +120,26 @@ impl Stream {
             }
         }
 
-        if id <= self.latest_id{
+        if parsed_id <= self.latest_id{
             return Err("The ID specified in XADD is equal or smaller than the target stream top item")
         }
         self.entries.insert(parsed_id, val);
         self.latest_id = parsed_id;
         Ok(parsed_id)
+    }
+
+    pub fn range(&self, mut start: StreamId, stop: StreamId) -> Vec<&StreamEntry> {
+        let mut res: Vec<&StreamEntry> = vec!();
+        if start.serial_num == AUTO_SENTINEL {
+            start = start.replace_seq(0)
+        }
+        for elem in self.entries.range(
+            (
+                Included(&start), Included(&stop)
+            )
+        ) {
+            res.push(elem.1);
+        };
+        res
     }
 }

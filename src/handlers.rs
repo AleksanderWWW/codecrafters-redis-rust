@@ -4,12 +4,14 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::time::{sleep, Duration, Instant};
 
+use itertools::Itertools;
+
 use tokio::sync::RwLock;
 
 use crate::entry::Entry;
 use crate::log::info;
 use crate::entry::EntryType;
-use crate::stream::{Stream, StreamEntry};
+use crate::stream::{RespItem, Stream, StreamEntry, StreamId, entry_to_resp_arr, serialize_resp_item};
 
 type EntryArc = Arc<RwLock<HashMap<String, Entry>>>;
 
@@ -282,6 +284,24 @@ pub async fn handle_xadd(k: String, se: StreamEntry, arr_value: EntryArc) -> Str
     }
 }
 
+pub async fn handle_xrange(k: String, start: StreamId, stop: StreamId, arr_value: EntryArc) -> String {
+    let db = arr_value.read().await;
+
+    let Some(entry) = db.get(&k) else {
+        return make_error_message("key not found")
+    };
+
+    match entry.val {
+        EntryType::Stream(ref s) => {
+            let r: Vec<RespItem> = s.range(start, stop).iter().map(|&x| {
+                entry_to_resp_arr(x)
+            }).collect();
+            serialize_resp_item(&RespItem::Array(r))
+        },
+        _ => make_wrongtype_message()
+    }
+}
+
 pub async fn handle_err() -> String {
     make_empty_message()
 }
@@ -311,7 +331,7 @@ fn make_empty_message() -> String {
     String::from("$-1\r\n")
 }
 
-fn make_bulk_string(val: &str) -> String {
+pub fn make_bulk_string(val: &str) -> String {
     format!("${}\r\n{}\r\n", val.len(), val)
 }
 
@@ -339,6 +359,13 @@ fn make_null_array_message() -> String {
     format!("*{}\r\n", -1)
 }
 
-pub fn make_wrongtype_message() -> String {
+fn make_wrongtype_message() -> String {
     String::from("-WRONGTYPE Operation against a key holding the wrong kind of value\r\n")
+}
+
+pub fn make_array_message(arr: Vec<String>) -> String {
+    let mapped = arr.iter().map(|elem| {
+        make_bulk_string(elem)
+    }).join("");
+    format!("*{}\r\n{}", arr.len(), mapped)
 }

@@ -4,6 +4,8 @@ use crate::entry::EntryType;
 use crate::log::info;
 use crate::stream::{StreamEntry, StreamId};
 
+use crate::AUTO_SENTINEL;
+
 
 #[derive(Debug)]
 pub enum Op {
@@ -18,7 +20,8 @@ pub enum Op {
     Lpop(String, Option<u64>),
     Blpop(String, f64),
     Type(String),
-    XAdd(String, StreamEntry)
+    XAdd(String, StreamEntry),
+    Xrange(String, StreamId, StreamId)
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -184,13 +187,23 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
             } else {
                 let key = args[1].clone();
                 let id = args[2].clone();
-                let data: HashMap<String, String> = HashMap::new();
+                let mut data: HashMap<String, String> = HashMap::new();
+                let mut curr_key = "";
+                for i in args.iter().skip(3) {
+                    if curr_key == "" {
+                        curr_key = &i;
+                        data.insert(curr_key.to_string(), String::from(""));
+                    } else {
+                        data.insert(curr_key.to_string(), String::from(i));
+                        curr_key = "";
+                    }
+                }
 
                 if id == "*" {
                     return Ok(Op::XAdd(key, StreamEntry{
                         entry_id: StreamId{
-                            milisecond_time: u64::MAX,
-                            serial_num: u64::MAX
+                            milisecond_time: AUTO_SENTINEL,
+                            serial_num: AUTO_SENTINEL
                         },
                         data
                     }))
@@ -205,7 +218,7 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
 
                 let seq: u64;
                 if parts[1].trim() == "*" {
-                    seq = u64::MAX;
+                    seq = AUTO_SENTINEL;
                 } else {
                     seq = match parts[1].trim().parse::<u64>() {
                         Ok(val) => val,
@@ -221,6 +234,49 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                     data
                 }))
             }
+        },
+        "xrange" => {
+            if args.len() < 4 {
+                return Err("invalid message")
+            }
+            let key = args[1].clone();
+            let start_id = args[2].clone();
+            let stop_id = args[3].clone();
+
+            let mut parts: Vec<&str> = start_id.split("-").collect();
+            let start: StreamId = {
+                let mili_time = match parts[0].trim().parse::<u64>() {
+                        Ok(val) => val,
+                        Err(_) => return Err("Could not parse milisecond time from ID")
+                    };
+                if parts.len() == 1 {
+                    StreamId{milisecond_time: mili_time, serial_num: 0}
+                } else {
+                    let seq = match parts[1].trim().parse::<u64>() {
+                        Ok(val) => val,
+                        Err(_) => return Err("Could not parse milisecond time from ID")
+                    };
+                    StreamId { milisecond_time: mili_time, serial_num: seq }
+                }
+            };
+
+            parts = stop_id.split("-").collect();
+            let stop: StreamId = {
+                let mili_time = match parts[0].trim().parse::<u64>() {
+                        Ok(val) => val,
+                        Err(_) => return Err("Could not parse milisecond time from ID")
+                    };
+                if parts.len() == 1 {
+                    StreamId{milisecond_time: mili_time, serial_num: AUTO_SENTINEL}
+                } else {
+                    let seq = match parts[1].trim().parse::<u64>() {
+                        Ok(val) => val,
+                        Err(_) => return Err("Could not parse milisecond time from ID")
+                    };
+                    StreamId { milisecond_time: mili_time, serial_num: seq }
+                }
+            };
+            Ok(Op::Xrange(key, start, stop))
         }
         _ => Err("invalid message"),
     }
