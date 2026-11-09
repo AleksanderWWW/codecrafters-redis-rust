@@ -243,43 +243,57 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
             let start_id = args[2].clone();
             let stop_id = args[3].clone();
 
-            let mut parts: Vec<&str> = start_id.split("-").collect();
-            let start: StreamId = {
-                let mili_time = match parts[0].trim().parse::<u64>() {
-                        Ok(val) => val,
-                        Err(_) => return Err("Could not parse milisecond time from ID")
-                    };
-                if parts.len() == 1 {
-                    StreamId{milisecond_time: mili_time, serial_num: 0}
-                } else {
-                    let seq = match parts[1].trim().parse::<u64>() {
-                        Ok(val) => val,
-                        Err(_) => return Err("Could not parse milisecond time from ID")
-                    };
-                    StreamId { milisecond_time: mili_time, serial_num: seq }
-                }
-            };
-
-            parts = stop_id.split("-").collect();
-            let stop: StreamId = {
-                let mili_time = match parts[0].trim().parse::<u64>() {
-                        Ok(val) => val,
-                        Err(_) => return Err("Could not parse milisecond time from ID")
-                    };
-                if parts.len() == 1 {
-                    StreamId{milisecond_time: mili_time, serial_num: AUTO_SENTINEL}
-                } else {
-                    let seq = match parts[1].trim().parse::<u64>() {
-                        Ok(val) => val,
-                        Err(_) => return Err("Could not parse milisecond time from ID")
-                    };
-                    StreamId { milisecond_time: mili_time, serial_num: seq }
-                }
-            };
+            let start = parse_xrange_start(start_id)?;
+            let stop = parse_xrange_stop(stop_id)?;
+            
             Ok(Op::Xrange(key, start, stop))
         }
         _ => Err("invalid message"),
     }
+}
+
+fn parse_xrange_start(start_id: String) -> Result<StreamId, &'static str> {
+    if start_id == "-" {
+        return Ok(StreamId { milisecond_time: 0, serial_num: 1 })
+    }
+
+    let parts: Vec<&str> = start_id.split("-").collect();
+    let start: StreamId = {
+        let mili_time = match parts[0].trim().parse::<u64>() {
+                Ok(val) => val,
+                Err(_) => return Err("Could not parse milisecond time from ID")
+            };
+        if parts.len() == 1 {
+            StreamId{milisecond_time: mili_time, serial_num: 0}
+        } else {
+            let seq = match parts[1].trim().parse::<u64>() {
+                Ok(val) => val,
+                Err(_) => return Err("Could not parse milisecond time from ID")
+            };
+            StreamId { milisecond_time: mili_time, serial_num: seq }
+        }
+    };
+    Ok(start)
+}
+
+fn parse_xrange_stop(stop_id: String) -> Result<StreamId, &'static str> {
+    let parts: Vec<&str> = stop_id.split("-").collect();
+    let stop: StreamId = {
+        let mili_time = match parts[0].trim().parse::<u64>() {
+                Ok(val) => val,
+                Err(_) => return Err("Could not parse milisecond time from ID")
+            };
+        if parts.len() == 1 {
+            StreamId{milisecond_time: mili_time, serial_num: AUTO_SENTINEL}
+        } else {
+            let seq = match parts[1].trim().parse::<u64>() {
+                Ok(val) => val,
+                Err(_) => return Err("Could not parse milisecond time from ID")
+            };
+            StreamId { milisecond_time: mili_time, serial_num: seq }
+        }
+    };
+    Ok(stop)
 }
 
 fn get_num_bytes(ri: &mut Iter<'_, u8>) -> Option<usize> {
