@@ -277,6 +277,9 @@ fn parse_xrange_start(start_id: String) -> Result<StreamId, &'static str> {
 }
 
 fn parse_xrange_stop(stop_id: String) -> Result<StreamId, &'static str> {
+    if stop_id == "+" {
+        return Ok(StreamId{milisecond_time: AUTO_SENTINEL, serial_num: AUTO_SENTINEL});
+    }
     let parts: Vec<&str> = stop_id.split("-").collect();
     let stop: StreamId = {
         let mili_time = match parts[0].trim().parse::<u64>() {
