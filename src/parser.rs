@@ -268,7 +268,7 @@ fn parse_xrange_start(start_id: String) -> Result<StreamId, &'static str> {
         } else {
             let seq = match parts[1].trim().parse::<u64>() {
                 Ok(val) => val,
-                Err(_) => return Err("Could not parse milisecond time from ID")
+                Err(_) => return Err("Could not parse sequence number from ID")
             };
             StreamId { milisecond_time: mili_time, serial_num: seq }
         }
@@ -288,7 +288,7 @@ fn parse_xrange_stop(stop_id: String) -> Result<StreamId, &'static str> {
         } else {
             let seq = match parts[1].trim().parse::<u64>() {
                 Ok(val) => val,
-                Err(_) => return Err("Could not parse milisecond time from ID")
+                Err(_) => return Err("Could not parse sequence number from ID")
             };
             StreamId { milisecond_time: mili_time, serial_num: seq }
         }
