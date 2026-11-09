@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::ops::Bound::Included;
 use itertools::Itertools;
 
-use crate::{AUTO_SENTINEL, handlers::{make_array_message, make_bulk_string}};
+use crate::{AUTO_SENTINEL, handlers::make_bulk_string};
 
 pub fn current_timestamp_millis() -> u64 {
     SystemTime::now()
