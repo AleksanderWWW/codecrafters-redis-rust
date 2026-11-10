@@ -314,7 +314,7 @@ pub async fn handle_xread(k: String, id: StreamId, arr_value: EntryArc) -> Strin
             if let Some(res) = s.get(&id) {
                 serialize_resp_item(&RespItem::Array(vec![entry_to_resp_arr(res)]))
             } else {
-                make_empty_message()
+                "*-1\r\n".to_string();
             }
             
         },
