@@ -314,7 +314,15 @@ pub async fn handle_xread(k: String, id: StreamId, arr_value: EntryArc) -> Strin
             let r: Vec<RespItem> = s.read(&id).iter().map(|&x| {
                 entry_to_resp_arr(x)
             }).collect();
-            serialize_resp_item(&RespItem::Array(r))            
+            if r.is_empty() {
+                return make_null_array_message()
+            }
+
+            let stream_result = RespItem::Array(vec![
+                RespItem::Bulk(k),
+                RespItem::Array(r),
+            ]);
+            serialize_resp_item(&RespItem::Array(vec![stream_result]))           
         },
         _ => make_wrongtype_message()
     }
