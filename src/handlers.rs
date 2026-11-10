@@ -306,17 +306,15 @@ pub async fn handle_xread(k: String, id: StreamId, arr_value: EntryArc) -> Strin
     let db = arr_value.read().await;
 
     let Some(entry) = db.get(&k) else {
-        return make_error_message("key not found")
+        return make_null_array_message()
     };
 
     match entry.val {
         EntryType::Stream(ref s) => {
-            if let Some(res) = s.get(&id) {
-                serialize_resp_item(&RespItem::Array(vec![entry_to_resp_arr(res)]))
-            } else {
-                "*-1\r\n".to_string()
-            }
-            
+            let r: Vec<RespItem> = s.read(&id).iter().map(|&x| {
+                entry_to_resp_arr(x)
+            }).collect();
+            serialize_resp_item(&RespItem::Array(r))            
         },
         _ => make_wrongtype_message()
     }

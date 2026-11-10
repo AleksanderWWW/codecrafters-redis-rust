@@ -1,6 +1,6 @@
 use std::{cmp::max, collections::{BTreeMap, HashMap}};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::ops::Bound::Included;
+use std::ops::Bound::{Included, Excluded, Unbounded};
 use itertools::Itertools;
 
 use crate::{AUTO_SENTINEL, handlers::make_bulk_string};
@@ -141,6 +141,14 @@ impl Stream {
             res.push(elem.1);
         };
         res
+    }
+
+    pub fn read(&self, id: &StreamId) -> Vec<&StreamEntry> {
+        self.entries.range(
+            (
+                Excluded(id), Unbounded
+            )
+        ).map(|elem| elem.1).collect()
     }
 
     pub fn get(&self, key: &StreamId) -> Option<&StreamEntry> {
