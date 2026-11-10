@@ -142,4 +142,8 @@ impl Stream {
         };
         res
     }
+
+    pub fn get(&self, key: &StreamId) -> Option<&StreamEntry> {
+        self.entries.get(key)
+    }
 }

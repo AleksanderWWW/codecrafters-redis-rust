@@ -2,6 +2,7 @@ use std::{collections::HashMap, slice::Iter};
 
 use crate::entry::EntryType;
 use crate::log::info;
+use crate::parser::Op::Xread;
 use crate::stream::{StreamEntry, StreamId};
 
 use crate::AUTO_SENTINEL;
@@ -21,7 +22,8 @@ pub enum Op {
     Blpop(String, f64),
     Type(String),
     XAdd(String, StreamEntry),
-    Xrange(String, StreamId, StreamId)
+    Xrange(String, StreamId, StreamId),
+    Xread(String, StreamId)
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -247,6 +249,16 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
             let stop = parse_xrange_stop(stop_id)?;
             
             Ok(Op::Xrange(key, start, stop))
+        }
+        "xread" => {
+            if args.len() < 4 {
+                return Err("invalid message")
+            }
+
+            let key = args[2].clone();
+            let start = parse_xrange_start(args[3].clone())?;
+
+            Ok(Xread(key, start))
         }
         _ => Err("invalid message"),
     }

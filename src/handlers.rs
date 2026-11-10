@@ -302,6 +302,26 @@ pub async fn handle_xrange(k: String, start: StreamId, stop: StreamId, arr_value
     }
 }
 
+pub async fn handle_xread(k: String, id: StreamId, arr_value: EntryArc) -> String {
+    let db = arr_value.read().await;
+
+    let Some(entry) = db.get(&k) else {
+        return make_error_message("key not found")
+    };
+
+    match entry.val {
+        EntryType::Stream(ref s) => {
+            if let Some(res) = s.get(&id) {
+                serialize_resp_item(&RespItem::Array(vec![entry_to_resp_arr(res)]))
+            } else {
+                make_empty_message()
+            }
+            
+        },
+        _ => make_wrongtype_message()
+    }
+}
+
 pub async fn handle_err() -> String {
     make_empty_message()
 }

@@ -9,7 +9,7 @@ use tokio::net::TcpListener;
 
 use codecrafters_redis::entry::Entry;
 use codecrafters_redis::handlers::{
-    ArrOpType, handle_blpop, handle_echo, handle_err, handle_get, handle_llen, handle_lpop, handle_lrange, handle_ping, handle_push, handle_set, handle_type, handle_xadd, handle_xrange
+    ArrOpType, handle_blpop, handle_echo, handle_err, handle_get, handle_llen, handle_lpop, handle_lrange, handle_ping, handle_push, handle_set, handle_type, handle_xadd, handle_xrange, handle_xread
 };
 use codecrafters_redis::log::{error, info};
 
@@ -99,6 +99,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(Op::Xrange(k, start, stop)) => {
                         info(&format!("XRANGE {} {} {}", k, start.to_string(), stop.to_string()));
                         handle_xrange(k, start, stop, data_cl.clone()).await
+                    }
+                    Ok(Op::Xread(k, id)) => {
+                        info(&format!("XREAD {} {}", k, id.to_string()));
+                        handle_xread(k, id, data_cl.clone()).await
                     }
                     Err(err) => {
                         error(err);
