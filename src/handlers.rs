@@ -308,7 +308,7 @@ pub async fn handle_xread(kips: Vec<StreamKeyIdPair>, block_milis: Option<u64>, 
         let mut elapsed: u64 = 0;
         let mut res = do_handle_xread_single(&kips, &arr_value).await;
 
-        while milis > elapsed {
+        while should_keep_blocking(milis, elapsed) {
             if res != serialize_resp_item(&RespItem::Array(vec!())) { 
                 return res 
             }
@@ -320,6 +320,10 @@ pub async fn handle_xread(kips: Vec<StreamKeyIdPair>, block_milis: Option<u64>, 
     } else {
         return do_handle_xread_single(&kips, &arr_value).await
     }
+}
+
+fn should_keep_blocking(milis: u64, elapsed: u64) -> bool {
+    milis == 0 || milis > elapsed    
 }
 
 async fn do_handle_xread_single(kips: &Vec<StreamKeyIdPair>, arr_value: &EntryArc) -> String {
