@@ -316,7 +316,7 @@ pub async fn handle_xread(kips: Vec<StreamKeyIdPair>, block_milis: Option<u64>, 
             res = do_handle_xread_single(&kips, &arr_value).await;
             elapsed += 10;
         }
-        return serialize_resp_item(&RespItem::Array(vec!()))
+        return make_null_array_message()
     } else {
         return do_handle_xread_single(&kips, &arr_value).await
     }
