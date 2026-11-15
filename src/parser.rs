@@ -261,14 +261,14 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                 return Err("invalid message")
             }
 
-            let num_pairs: usize = (args.len() - 1) / 2;
+            let num_pairs: usize = (args.len() - 2) / 2;
             let mut res: Vec<StreamKeyIdPair> = Vec::with_capacity(num_pairs);
 
             for i in 0..num_pairs {
                 res.push(
                     StreamKeyIdPair { 
-                        key:args[1 + i].clone(), 
-                        id: parse_xrange_start(args[1 + i + num_pairs].clone())?,
+                        key:args[2 + i].clone(), 
+                        id: parse_xrange_start(args[2 + i + num_pairs].clone())?,
                     }
                 );
             }
