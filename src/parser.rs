@@ -23,7 +23,7 @@ pub enum Op {
     Type(String),
     XAdd(String, StreamEntry),
     Xrange(String, StreamId, StreamId),
-    Xread(Vec<StreamKeyIdPair>)
+    Xread(Vec<StreamKeyIdPair>, Option<u64>)
 }
 
 #[derive(Debug)]
@@ -260,20 +260,30 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
             if args.len() < 4 {
                 return Err("invalid message")
             }
+            let is_blocking_call = args[1].to_ascii_lowercase() == "block";
 
-            let num_pairs: usize = (args.len() - 2) / 2;
+            let offset = if is_blocking_call { 4 } else { 2 };
+
+            let num_pairs: usize = (args.len() - offset) / 2;
             let mut res: Vec<StreamKeyIdPair> = Vec::with_capacity(num_pairs);
 
             for i in 0..num_pairs {
                 res.push(
                     StreamKeyIdPair { 
-                        key:args[2 + i].clone(), 
-                        id: parse_xrange_start(args[2 + i + num_pairs].clone())?,
+                        key:args[offset + i].clone(), 
+                        id: parse_xrange_start(args[offset + i + num_pairs].clone())?,
                     }
                 );
             }
 
-            Ok(Xread(res))
+            if is_blocking_call {
+                if let Ok(milis) = args[2].clone().trim().parse::<u64>() {
+                    return Ok(Xread(res, Some(milis)))
+                }
+                return Err("Could not parse miliseconds for the BLOCK command")
+            }
+
+            Ok(Xread(res, None))
         }
         _ => Err("invalid message"),
     }

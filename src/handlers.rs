@@ -303,14 +303,32 @@ pub async fn handle_xrange(k: String, start: StreamId, stop: StreamId, arr_value
     }
 }
 
-pub async fn handle_xread(kips: Vec<StreamKeyIdPair>, arr_value: EntryArc) -> String {
+pub async fn handle_xread(kips: Vec<StreamKeyIdPair>, block_milis: Option<u64>, arr_value: EntryArc) -> String {
+    if let Some(milis) = block_milis {
+        let mut elapsed: u64 = 0;
+        let mut res = do_handle_xread_single(&kips, &arr_value).await;
+
+        while milis > elapsed {
+            if res != serialize_resp_item(&RespItem::Array(vec!())) { 
+                return res 
+            }
+            sleep(std::time::Duration::from_millis(10)).await;
+            res = do_handle_xread_single(&kips, &arr_value).await;
+            elapsed += 10;
+        }
+        return serialize_resp_item(&RespItem::Array(vec!()))
+    } else {
+        return do_handle_xread_single(&kips, &arr_value).await
+    }
+}
+
+async fn do_handle_xread_single(kips: &Vec<StreamKeyIdPair>, arr_value: &EntryArc) -> String {
     let db = arr_value.read().await;
 
     let mut res: Vec<RespItem> = Vec::with_capacity(kips.len());
 
     for kip in kips {
         let Some(entry) = db.get(&kip.key) else {
-            res.push(RespItem::Array(vec!()));
             continue;
         };
 
@@ -320,12 +338,11 @@ pub async fn handle_xread(kips: Vec<StreamKeyIdPair>, arr_value: EntryArc) -> St
                     entry_to_resp_arr(x)
                 }).collect();
                 if r.is_empty() {
-                    res.push(RespItem::Array(vec!()));
                     continue;
                 }
 
                 let stream_result = RespItem::Array(vec![
-                    RespItem::Bulk(kip.key),
+                    RespItem::Bulk(kip.key.clone()),
                     RespItem::Array(r),
                 ]);
 
