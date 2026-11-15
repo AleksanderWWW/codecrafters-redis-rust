@@ -100,9 +100,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         info(&format!("XRANGE {} {} {}", k, start.to_string(), stop.to_string()));
                         handle_xrange(k, start, stop, data_cl.clone()).await
                     }
-                    Ok(Op::Xread(k, id)) => {
-                        info(&format!("XREAD {} {}", k, id.to_string()));
-                        handle_xread(k, id, data_cl.clone()).await
+                    Ok(Op::Xread(kip)) => {
+                        info(&format!("XREAD {:?}", kip));
+                        handle_xread(kip, data_cl.clone()).await
                     }
                     Err(err) => {
                         error(err);

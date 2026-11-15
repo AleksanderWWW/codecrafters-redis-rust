@@ -23,7 +23,13 @@ pub enum Op {
     Type(String),
     XAdd(String, StreamEntry),
     Xrange(String, StreamId, StreamId),
-    Xread(String, StreamId)
+    Xread(Vec<StreamKeyIdPair>)
+}
+
+#[derive(Debug)]
+pub struct StreamKeyIdPair {
+    pub key: String,
+    pub id: StreamId
 }
 
 const MAX_ARGS: usize = 10_000;
@@ -255,10 +261,19 @@ pub fn parse(req: &[u8]) -> Result<Op, &'static str> {
                 return Err("invalid message")
             }
 
-            let key = args[2].clone();
-            let start = parse_xrange_start(args[3].clone())?;
+            let num_pairs: usize = (args.len() - 1) / 2;
+            let mut res: Vec<StreamKeyIdPair> = Vec::with_capacity(num_pairs);
 
-            Ok(Xread(key, start))
+            for i in 0..num_pairs {
+                res.push(
+                    StreamKeyIdPair { 
+                        key:args[1 + i].clone(), 
+                        id: parse_xrange_start(args[1 + i + num_pairs].clone())?,
+                    }
+                );
+            }
+
+            Ok(Xread(res))
         }
         _ => Err("invalid message"),
     }

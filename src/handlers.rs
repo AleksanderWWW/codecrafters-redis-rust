@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 use crate::entry::Entry;
 use crate::log::info;
 use crate::entry::EntryType;
+use crate::parser::StreamKeyIdPair;
 use crate::stream::{RespItem, Stream, StreamEntry, StreamId, entry_to_resp_arr, serialize_resp_item};
 
 type EntryArc = Arc<RwLock<HashMap<String, Entry>>>;
@@ -302,30 +303,38 @@ pub async fn handle_xrange(k: String, start: StreamId, stop: StreamId, arr_value
     }
 }
 
-pub async fn handle_xread(k: String, id: StreamId, arr_value: EntryArc) -> String {
+pub async fn handle_xread(kips: Vec<StreamKeyIdPair>, arr_value: EntryArc) -> String {
     let db = arr_value.read().await;
 
-    let Some(entry) = db.get(&k) else {
-        return make_null_array_message()
-    };
+    let mut res: Vec<RespItem> = Vec::with_capacity(kips.len());
 
-    match entry.val {
-        EntryType::Stream(ref s) => {
-            let r: Vec<RespItem> = s.read(&id).iter().map(|&x| {
-                entry_to_resp_arr(x)
-            }).collect();
-            if r.is_empty() {
-                return make_null_array_message()
+    for kip in kips {
+        let Some(entry) = db.get(&kip.key) else {
+            res.push(RespItem::Array(vec!()));
+            continue;
+        };
+
+        match entry.val {
+            EntryType::Stream(ref s) => {
+                let r: Vec<RespItem> = s.read(&kip.id).iter().map(|&x| {
+                    entry_to_resp_arr(x)
+                }).collect();
+                if r.is_empty() {
+                    res.push(RespItem::Array(vec!()));
+                    continue;
+                }
+
+                let stream_result = RespItem::Array(vec![
+                    RespItem::Bulk(kip.key),
+                    RespItem::Array(r),
+                ]);
+
+                res.push(stream_result);
             }
-
-            let stream_result = RespItem::Array(vec![
-                RespItem::Bulk(k),
-                RespItem::Array(r),
-            ]);
-            serialize_resp_item(&RespItem::Array(vec![stream_result]))           
-        },
-        _ => make_wrongtype_message()
+            _ => return make_wrongtype_message(),
+        }
     }
+    serialize_resp_item(&RespItem::Array(res))
 }
 
 pub async fn handle_err() -> String {
